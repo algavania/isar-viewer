@@ -10,6 +10,7 @@ import {
   Moon,
   Radio,
   ArrowLeft,
+  Archive,
 } from 'lucide-react';
 import { IsarDatabaseModel } from '../core/isarDatabase';
 
@@ -28,6 +29,7 @@ interface TopBarProps {
   onToggleTheme: () => void;
   onBackToLanding: () => void;
   watchedPath?: string | null;
+  onOpenExportZip?: () => void;
 }
 
 export function formatBytes(bytes: number): string {
@@ -49,6 +51,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleTheme,
   onBackToLanding,
   watchedPath,
+  onOpenExportZip,
 }) => {
   const navItems: { id: AppView; label: string; icon: React.ReactNode }[] = [
     { id: 'data', label: 'Data Explorer', icon: <Table2 className="w-3.5 h-3.5" /> },
@@ -165,6 +168,18 @@ export const TopBar: React.FC<TopBarProps> = ({
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
           </>
+        )}
+
+        {onOpenExportZip && (
+          <button
+            type="button"
+            onClick={onOpenExportZip}
+            title="Export entire database as JSON (.zip)"
+            className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+          >
+            <Archive className="w-3.5 h-3.5 text-emerald-500" />
+            <span className="hidden sm:inline">Export ZIP</span>
+          </button>
         )}
 
         <button

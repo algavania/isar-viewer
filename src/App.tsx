@@ -13,6 +13,7 @@ import { DataTable } from './components/DataTable';
 import { RowInspector } from './components/RowInspector';
 import { SchemaView } from './components/SchemaView';
 import { MdbxInternalsView } from './components/MdbxInternalsView';
+import { ExportModal } from './components/ExportModal';
 
 interface FileSystemFileHandleLike {
   getFile: () => Promise<File>;
@@ -46,6 +47,7 @@ export function App() {
   const [autoWatch, setAutoWatch] = useState(false);
   const [watchedPath, setWatchedPath] = useState<string | null>(null);
   const [draggingOverApp, setDraggingOverApp] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const fileHandleRef = useRef<FileSystemFileHandleLike | null>(null);
   const lastModifiedRef = useRef<number>(0);
@@ -560,6 +562,7 @@ export function App() {
         onToggleTheme={() => setDark((d) => !d)}
         onBackToLanding={handleBackToLanding}
         watchedPath={watchedPath}
+        onOpenExportZip={() => setShowExportModal(true)}
       />
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
@@ -575,6 +578,7 @@ export function App() {
             setFocusedSchema(name);
             setActiveView('schema');
           }}
+          onOpenExportZip={() => setShowExportModal(true)}
         />
 
         {activeView === 'data' && currentCol && (
@@ -583,6 +587,7 @@ export function App() {
               collection={currentCol}
               selectedRowId={selectedRow?.idLabel ?? null}
               onSelectRow={setSelectedRow}
+              onOpenExportZip={() => setShowExportModal(true)}
             />
             {selectedRow && (
               <RowInspector
@@ -610,6 +615,12 @@ export function App() {
 
         {activeView === 'internals' && <MdbxInternalsView db={db} />}
       </div>
+
+      <ExportModal
+        db={db}
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Table, Box, Search, Link2, KeyRound } from 'lucide-react';
+import { Table, Box, Search, Link2, KeyRound, Archive } from 'lucide-react';
 import { IsarDatabaseModel } from '../core/isarDatabase';
 
 interface SidebarProps {
@@ -7,6 +7,7 @@ interface SidebarProps {
   selectedCollection: string;
   onSelectCollection: (name: string) => void;
   onSelectEmbedded: (name: string) => void;
+  onOpenExportZip?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -14,6 +15,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedCollection,
   onSelectCollection,
   onSelectEmbedded,
+  onOpenExportZip,
 }) => {
   const [filter, setFilter] = useState('');
 
@@ -130,9 +132,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Footer stats */}
-      <div className="p-3 border-t border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between font-mono">
-        <span>{db.collections.length} collections</span>
-        <span>{db.totalRows.toLocaleString()} rows</span>
+      <div className="p-3 border-t border-slate-200 dark:border-slate-800/80 text-[11px] text-slate-500 dark:text-slate-400 flex flex-col gap-2">
+        <div className="flex items-center justify-between font-mono">
+          <span>{db.collections.length} collections</span>
+          <span>{db.totalRows.toLocaleString()} rows</span>
+        </div>
+        {onOpenExportZip && (
+          <button
+            type="button"
+            onClick={onOpenExportZip}
+            className="w-full py-1.5 px-2.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 flex items-center justify-center gap-1.5 text-xs font-medium transition-colors cursor-pointer"
+          >
+            <Archive className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Export to JSON (.zip)</span>
+          </button>
+        )}
       </div>
     </aside>
   );

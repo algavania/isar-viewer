@@ -15,6 +15,7 @@ import {
   ChevronsRight,
   Link2,
   Plus,
+  Archive,
 } from 'lucide-react';
 import {
   CollectionData,
@@ -34,6 +35,7 @@ interface DataTableProps {
   collection: CollectionData;
   selectedRowId: string | null;
   onSelectRow: (row: DecodedRow) => void;
+  onOpenExportZip?: () => void;
 }
 
 const OPERATORS: { value: FilterOperator; label: string }[] = [
@@ -62,6 +64,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   collection,
   selectedRowId,
   onSelectRow,
+  onOpenExportZip,
 }) => {
   const activeProps = useMemo(
     () => collection.schema.properties.filter((p): p is IsarPropertySchema & { name: string } => p.name !== null),
@@ -495,6 +498,22 @@ export const DataTable: React.FC<DataTableProps> = ({
                 >
                   Export CSV ({filteredRows.length} rows)
                 </button>
+                {onOpenExportZip && (
+                  <>
+                    <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowExportMenu(false);
+                        onOpenExportZip();
+                      }}
+                      className="w-full px-3 py-1.5 rounded-lg text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium"
+                    >
+                      <Archive className="w-3.5 h-3.5" />
+                      <span>Export All as ZIP...</span>
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
