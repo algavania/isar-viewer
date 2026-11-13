@@ -1,22 +1,63 @@
-import React, { useState } from 'react';
-import { Database, Upload, Sparkles, ShieldCheck, Layers, GitFork, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import {
+  Database,
+  Upload,
+  Sparkles,
+  ShieldCheck,
+  Layers,
+  GitFork,
+  AlertCircle,
+  Sun,
+  Moon,
+  Radio,
+  Terminal,
+} from 'lucide-react';
 
 interface DropZoneProps {
   onOpenPicker: () => void;
   onDropFile: (file: File) => void;
   onLoadSample: () => void;
+  onInspectPath: (path: string) => Promise<void>;
   error: string | null;
   loading: boolean;
+  dark: boolean;
+  onToggleTheme: () => void;
 }
 
 export const DropZone: React.FC<DropZoneProps> = ({
   onOpenPicker,
   onDropFile,
   onLoadSample,
+  onInspectPath,
   error,
   loading,
+  dark,
+  onToggleTheme,
 }) => {
   const [dragging, setDragging] = useState(false);
+  const [pathInput, setPathInput] = useState('');
+  const [recentPaths, setRecentPaths] = useState<string[]>([]);
+  const [isServerReady, setIsServerReady] = useState<boolean>(true);
+
+  // Load recent paths from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('isar-viewer-recent-paths');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setRecentPaths(parsed.slice(0, 4));
+          if (parsed[0]) setPathInput(parsed[0]);
+        }
+      }
+    } catch {}
+
+    // Check if local dev/preview server is responding
+    fetch('/api/status')
+      .then((r) => r.json())
+      .then((data) => setIsServerReady(Boolean(data?.ok)))
+      .catch(() => setIsServerReady(false));
+  }, []);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -32,6 +73,12 @@ export const DropZone: React.FC<DropZoneProps> = ({
     if (file) onDropFile(file);
   };
 
+  const handlePathSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pathInput.trim() || loading) return;
+    await onInspectPath(pathInput.trim());
+  };
+
   return (
     <div
       onDragOver={handleDragOver}
@@ -39,6 +86,19 @@ export const DropZone: React.FC<DropZoneProps> = ({
       onDrop={handleDrop}
       className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden"
     >
+      {/* Light / Dark Mode Toggle in Landing Page */}
+      <div className="absolute top-5 right-5 z-20 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+          className="px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 shadow-sm backdrop-blur-md flex items-center gap-2 text-xs font-medium transition-all cursor-pointer"
+        >
+          {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
+          <span>{dark ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
+      </div>
+
       {/* Subtle ambient background glow */}
       <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[720px] h-[420px] rounded-full bg-emerald-500/10 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 right-1/4 w-[520px] h-[360px] rounded-full bg-cyan-500/10 blur-3xl" />
@@ -56,25 +116,116 @@ export const DropZone: React.FC<DropZoneProps> = ({
           </div>
         </div>
 
+        {/* Realtime Path Inspector Card */}
+        <div className="mb-5 rounded-2xl bg-white/90 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800/90 p-5 shadow-xl backdrop-blur-xl transition-all">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                <Radio className="w-4 h-4 animate-pulse" />
+              </div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Realtime Path Inspector
+              </h3>
+            </div>
+            {isServerReady ? (
+              <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                Live Watcher Ready
+              </span>
+            ) : (
+              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                Browser Mode
+              </span>
+            )}
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
+            Specify the file path to your local <code className="text-emerald-600 dark:text-emerald-400 font-mono">.isar</code> database. The viewer will inspect it and automatically re-render in realtime as your Flutter app writes changes.
+          </p>
+
+          <form onSubmit={handlePathSubmit} className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Terminal className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={pathInput}
+                onChange={(e) => setPathInput(e.target.value)}
+                placeholder="/path/to/your/flutter_app/default.isar or ./public/sample.isar"
+                className="w-full pl-9 pr-3 py-2.5 text-xs font-mono rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-600 transition-colors"
+                disabled={loading}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !pathInput.trim()}
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer shrink-0"
+            >
+              <Radio className="w-3.5 h-3.5 animate-pulse" />
+              <span>{loading ? 'Inspecting...' : 'Inspect Realtime'}</span>
+            </button>
+          </form>
+
+          {/* Quick suggestions / recent paths */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+            <span className="text-slate-400 text-[10px] uppercase font-semibold">Quick Load:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setPathInput('./public/sample.isar');
+                onInspectPath('./public/sample.isar');
+              }}
+              className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/80 hover:bg-emerald-500/10 hover:text-emerald-500 text-slate-600 dark:text-slate-300 font-mono transition-colors cursor-pointer"
+            >
+              ./public/sample.isar
+            </button>
+            {recentPaths
+              .filter((p) => p !== './public/sample.isar')
+              .map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => {
+                    setPathInput(p);
+                    onInspectPath(p);
+                  }}
+                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/80 hover:bg-emerald-500/10 hover:text-emerald-500 text-slate-600 dark:text-slate-300 font-mono truncate max-w-[200px] transition-colors cursor-pointer"
+                  title={p}
+                >
+                  {p.split('/').pop()}
+                </button>
+              ))}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="relative flex py-2 items-center mb-5">
+          <div className="flex-grow border-t border-slate-200 dark:border-slate-800/90"></div>
+          <span className="flex-shrink mx-4 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+            Or Open Local File Manually
+          </span>
+          <div className="flex-grow border-t border-slate-200 dark:border-slate-800/90"></div>
+        </div>
+
+        {/* Drag & Drop Area */}
         <div
           onClick={onOpenPicker}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && onOpenPicker()}
-          className={`group cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-200 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-xl ${
+          className={`group cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all duration-200 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-xl ${
             dragging
               ? 'border-emerald-500 bg-emerald-500/5 scale-[1.01] shadow-emerald-500/15'
               : 'border-slate-300 dark:border-slate-700/80 hover:border-emerald-500/70 hover:bg-white dark:hover:bg-slate-900'
           }`}
         >
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-4 group-hover:scale-105 group-hover:border-emerald-500/50 transition-transform">
-            <Upload className={`w-6 h-6 ${dragging ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-300'}`} />
+          <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-3 group-hover:scale-105 group-hover:border-emerald-500/50 transition-transform">
+            <Upload className={`w-5 h-5 ${dragging ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-300'}`} />
           </div>
 
-          <h2 className="text-lg font-semibold mb-1.5">
+          <h2 className="text-base font-semibold mb-1">
             {loading ? 'Parsing .isar database...' : 'Drop your .isar file here'}
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
             or click to browse from your computer — works without Dart schemas
           </p>
 
@@ -83,7 +234,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
               type="button"
               onClick={onOpenPicker}
               disabled={loading}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow-md shadow-emerald-600/20 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium shadow-md shadow-emerald-600/20 transition-colors cursor-pointer disabled:opacity-50"
             >
               Open .isar File
             </button>
@@ -91,50 +242,50 @@ export const DropZone: React.FC<DropZoneProps> = ({
               type="button"
               onClick={onLoadSample}
               disabled={loading}
-              className="px-4 py-2.5 rounded-xl bg-slate-200/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2.5 rounded-xl bg-slate-200/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-medium flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
             >
-              <Sparkles className="w-4 h-4 text-amber-500" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               Load Sample Database
             </button>
           </div>
         </div>
 
         {error && (
-          <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-sm flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
-              <p className="font-medium">Could not open file</p>
-              <p className="text-xs opacity-90 mt-0.5">{error}</p>
+              <p className="font-semibold">Could not open database</p>
+              <p className="opacity-90 mt-0.5">{error}</p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6">
-          <div className="p-4 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
+          <div className="p-3.5 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
             <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
               <ShieldCheck className="w-4 h-4" />
-              100% Local & Read-Only
+              100% Local & Safe
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Parsed directly in your browser. Your database never leaves your machine and is never modified.
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Parsed directly in memory. Your database never leaves your machine.
             </p>
           </div>
-          <div className="p-4 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
+          <div className="p-3.5 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
             <div className="flex items-center gap-2 text-xs font-semibold text-cyan-600 dark:text-cyan-400 mb-1">
               <Layers className="w-4 h-4" />
               Auto Schema Discovery
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Reads embedded <code className="text-[11px]">_info</code> schemas, tombstones, and binary payloads automatically.
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Reads embedded <code className="text-[10px]">_info</code> schemas, tombstones, and binary records.
             </p>
           </div>
-          <div className="p-4 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
+          <div className="p-3.5 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
             <div className="flex items-center gap-2 text-xs font-semibold text-violet-600 dark:text-violet-400 mb-1">
               <GitFork className="w-4 h-4" />
-              Links, Filter & Export
+              Realtime Live Watch
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Inspect <code className="text-[11px]">IsarLink</code> relations, filter/sort rows, view ER graph, and export JSON/CSV.
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Hot reloads grid and schemas whenever Flutter updates the <code className="text-[10px]">.isar</code> file.
             </p>
           </div>
         </div>

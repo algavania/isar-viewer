@@ -26,42 +26,181 @@ export function App() {
   const [focusedSchema, setFocusedSchema] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('isar-viewer-theme');
+      if (saved === 'dark') return true;
+      if (saved === 'light') return false;
+      return window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)').matches : true;
+    } catch {
+      return true;
+    }
+  });
   const [autoWatch, setAutoWatch] = useState(false);
+  const [watchedPath, setWatchedPath] = useState<string | null>(null);
   const [draggingOverApp, setDraggingOverApp] = useState(false);
 
   const fileHandleRef = useRef<FileSystemFileHandleLike | null>(null);
   const lastModifiedRef = useRef<number>(0);
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
-    if (dark) root.classList.add('dark');
-    else root.classList.remove('dark');
+    if (dark) {
+      root.classList.add('dark');
+      try {
+        localStorage.setItem('isar-viewer-theme', 'dark');
+      } catch {}
+    } else {
+      root.classList.remove('dark');
+      try {
+        localStorage.setItem('isar-viewer-theme', 'light');
+      } catch {}
+    }
   }, [dark]);
 
-  const loadFromFile = useCallback(async (file: File, keepSelection = false) => {
+  // Clean up SSE watcher on unmount
+  useEffect(() => {
+    return () => {
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
+    };
+  }, []);
+
+  const loadFromFile = useCallback(
+    async (file: File, keepSelection = false) => {
+      setLoading(true);
+      setError(null);
+      if (sseRef.current) {
+        sseRef.current.close();
+        sseRef.current = null;
+      }
+      setWatchedPath(null);
+
+      try {
+        const buf = await file.arrayBuffer();
+        const parsed = parseIsarFile(buf, file.name);
+        lastModifiedRef.current = file.lastModified;
+        setDb(parsed);
+
+        if (!keepSelection || !parsed.collectionMap.has(selectedCollection)) {
+          setSelectedCollection(parsed.collections[0]?.schema.name ?? '');
+          setSelectedRow(null);
+        } else if (selectedRow) {
+          const refreshedCol = parsed.collectionMap.get(selectedCollection);
+          setSelectedRow(refreshedCol?.rowById.get(selectedRow.idLabel) ?? null);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [selectedCollection, selectedRow]
+  );
+
+  const handleInspectPath = useCallback(async (pathInput: string) => {
+    const trimmed = pathInput.trim();
+    if (!trimmed) return;
     setLoading(true);
     setError(null);
-    try {
-      const buf = await file.arrayBuffer();
-      const parsed = parseIsarFile(buf, file.name);
-      lastModifiedRef.current = file.lastModified;
-      setDb(parsed);
+    fileHandleRef.current = null;
+    setAutoWatch(false);
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
 
-      if (!keepSelection || !parsed.collectionMap.has(selectedCollection)) {
-        setSelectedCollection(parsed.collections[0]?.schema.name ?? '');
-        setSelectedRow(null);
-      } else if (selectedRow) {
-        const refreshedCol = parsed.collectionMap.get(selectedCollection);
-        setSelectedRow(refreshedCol?.rowById.get(selectedRow.idLabel) ?? null);
+    try {
+      const res = await fetch(`/api/file?path=${encodeURIComponent(trimmed)}`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || `HTTP ${res.status}: Could not load file at ${trimmed}`);
       }
+
+      const buf = await res.arrayBuffer();
+      const fileName = res.headers.get('X-File-Name') || trimmed.split('/').pop() || 'database.isar';
+      const resolvedPath = res.headers.get('X-Resolved-Path') || trimmed;
+
+      const parsed = parseIsarFile(buf, fileName);
+      setDb(parsed);
+      setSelectedCollection(parsed.collections[0]?.schema.name ?? '');
+      setSelectedRow(null);
+      setWatchedPath(resolvedPath);
+
+      // Save to recent paths in localStorage
+      try {
+        const recents: string[] = JSON.parse(localStorage.getItem('isar-viewer-recent-paths') || '[]');
+        const updated = [resolvedPath, ...recents.filter((p) => p !== resolvedPath)].slice(0, 5);
+        localStorage.setItem('isar-viewer-recent-paths', JSON.stringify(updated));
+      } catch {}
+
+      // Setup Server-Sent Events (SSE) watcher for realtime updates
+      const sse = new EventSource(`/api/watch?path=${encodeURIComponent(resolvedPath)}`);
+      sseRef.current = sse;
+
+      sse.addEventListener('change', async () => {
+        try {
+          const reloadRes = await fetch(`/api/file?path=${encodeURIComponent(resolvedPath)}`);
+          if (!reloadRes.ok) return;
+          const freshBuf = await reloadRes.arrayBuffer();
+          const freshParsed = parseIsarFile(freshBuf, fileName);
+          setDb(freshParsed);
+
+          // Preserve selected collection and row if still valid
+          setSelectedCollection((prevCol) => {
+            if (prevCol && freshParsed.collectionMap.has(prevCol)) return prevCol;
+            return freshParsed.collections[0]?.schema.name ?? '';
+          });
+
+          setSelectedRow((prevRow) => {
+            if (!prevRow) return null;
+            for (const col of freshParsed.collections) {
+              const found = col.rowById.get(prevRow.idLabel);
+              if (found) return found;
+            }
+            return null;
+          });
+        } catch (e) {
+          console.error('Failed to hot-reload database:', e);
+        }
+      });
+
+      sse.onerror = () => {
+        // SSE network disconnect / reconnection is handled automatically by browser
+      };
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setLoading(false);
     }
-  }, [selectedCollection, selectedRow]);
+  }, []);
+
+  // Support ?path=... or ?inspect=... URL parameter on initial load
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const targetPath = params.get('path') || params.get('inspect');
+    if (targetPath) {
+      handleInspectPath(targetPath);
+    }
+  }, [handleInspectPath]);
+
+  const handleBackToLanding = useCallback(() => {
+    setDb(null);
+    setSelectedCollection('');
+    setSelectedRow(null);
+    setError(null);
+    setWatchedPath(null);
+    setAutoWatch(false);
+    fileHandleRef.current = null;
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
+  }, []);
 
   const handleOpenPicker = async () => {
     if (window.showOpenFilePicker) {
@@ -83,7 +222,6 @@ export function App() {
         return;
       } catch (err) {
         if ((err as DOMException)?.name === 'AbortError') return;
-        // Fall back to standard file input
       }
     }
     hiddenInputRef.current?.click();
@@ -120,6 +258,12 @@ export function App() {
     setError(null);
     fileHandleRef.current = null;
     setAutoWatch(false);
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
+    setWatchedPath(null);
+
     try {
       const res = await fetch('/sample.isar');
       if (!res.ok) throw new Error('Failed to fetch sample.isar');
@@ -203,8 +347,11 @@ export function App() {
             loadFromFile(f, false);
           }}
           onLoadSample={handleLoadSample}
+          onInspectPath={handleInspectPath}
           error={error}
           loading={loading}
+          dark={dark}
+          onToggleTheme={() => setDark((d) => !d)}
         />
       </>
     );
@@ -259,6 +406,8 @@ export function App() {
         onToggleAutoWatch={() => setAutoWatch((w) => !w)}
         dark={dark}
         onToggleTheme={() => setDark((d) => !d)}
+        onBackToLanding={handleBackToLanding}
+        watchedPath={watchedPath}
       />
 
       <div className="flex-1 min-h-0 flex overflow-hidden">

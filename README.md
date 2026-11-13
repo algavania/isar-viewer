@@ -60,12 +60,15 @@ When you pull a `.isar` file from a physical device, production build, QA bug re
 - **🔬 MDBX Storage Internals**:
   - Inspect MVCC meta pages (pages 0, 1, 2) and verify transaction IDs.
   - B-tree page statistics (item count, tree height, branch/leaf/overflow pages).
-- **🔄 Live Auto-Watch**:
-  - When opened via File System Access API, toggle "Watch" mode to auto-refresh the grid every 2 seconds as your Flutter app writes changes to disk.
-- **🔒 100% Client-Side & Private**:
+- **⚡ Realtime Path Inspector & Live Watch**:
+  - Simply paste or type your local `.isar` file path (e.g. `~/Downloads/default.isar` or `./sample.isar`), or run `npm run inspect <path>`.
+  - Built-in SSE (Server-Sent Events) live file watcher automatically hot-reloads data in the viewer the instant your Flutter app commits changes to disk.
+- **🔄 Instant Database Switching**:
+  - Easily jump back to the landing page with the dedicated "Switch Database" button to inspect another `.isar` file anytime.
+- **🔒 100% Local, Private & Offline-Capable**:
   - Zero server uploads. Your database never leaves your machine.
 - **🌓 Dark & Light Mode**:
-  - Sleek modern developer UI styled with Tailwind CSS v4 and JetBrains Mono.
+  - Modern switcher on both the landing page and viewer top bar, persisted in `localStorage`. Styled with Tailwind CSS v4 and JetBrains Mono.
 
 ---
 

@@ -9,6 +9,7 @@ import {
   Sun,
   Moon,
   Radio,
+  ArrowLeft,
 } from 'lucide-react';
 import { IsarDatabaseModel } from '../core/isarDatabase';
 
@@ -25,6 +26,8 @@ interface TopBarProps {
   onToggleAutoWatch: () => void;
   dark: boolean;
   onToggleTheme: () => void;
+  onBackToLanding: () => void;
+  watchedPath?: string | null;
 }
 
 export function formatBytes(bytes: number): string {
@@ -44,6 +47,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleAutoWatch,
   dark,
   onToggleTheme,
+  onBackToLanding,
+  watchedPath,
 }) => {
   const navItems: { id: AppView; label: string; icon: React.ReactNode }[] = [
     { id: 'data', label: 'Data Explorer', icon: <Table2 className="w-3.5 h-3.5" /> },
@@ -52,24 +57,46 @@ export const TopBar: React.FC<TopBarProps> = ({
   ];
 
   return (
-    <header className="h-13 shrink-0 border-b border-slate-200 dark:border-slate-800/90 bg-white dark:bg-slate-950/95 px-4 flex items-center justify-between gap-4 select-none">
-      {/* Left: Brand & File Info */}
-      <div className="flex items-center gap-3 min-w-0">
+    <header className="h-13 shrink-0 border-b border-slate-200 dark:border-slate-800/90 bg-white dark:bg-slate-950/95 px-4 flex items-center justify-between gap-3 select-none">
+      {/* Left: Back / Switch DB & File Info */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <button
+          type="button"
+          onClick={onBackToLanding}
+          title="Back to Landing Page (Switch Database)"
+          className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Switch Database</span>
+        </button>
+
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shrink-0 shadow-sm shadow-emerald-500/20">
           <Database className="w-4 h-4 text-white" />
         </div>
-        <div className="min-w-0 flex items-center gap-2.5">
-          <span className="font-semibold text-sm tracking-tight hidden sm:inline">Isar Viewer</span>
-          <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">/</span>
+
+        <div className="min-w-0 flex items-center gap-2">
+          <span className="font-semibold text-sm tracking-tight hidden lg:inline">Isar Viewer</span>
+          <span className="text-slate-300 dark:text-slate-700 hidden lg:inline">/</span>
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 min-w-0">
-            <span className="font-mono text-xs font-medium truncate max-w-[180px]" title={db.fileName}>
+            <span className="font-mono text-xs font-medium truncate max-w-[160px]" title={watchedPath || db.fileName}>
               {db.fileName}
             </span>
             <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 shrink-0">
               {formatBytes(db.mdbx.fileSize)}
             </span>
           </div>
-          <div className="hidden lg:flex items-center gap-1.5 text-[11px] font-mono text-slate-500 dark:text-slate-400">
+
+          {watchedPath && (
+            <div
+              className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-mono shrink-0"
+              title={`Watching: ${watchedPath}`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Realtime Watch</span>
+            </div>
+          )}
+
+          <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-mono text-slate-500 dark:text-slate-400">
             <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               {db.mdbx.pagesize / 1024}KB pages
             </span>
