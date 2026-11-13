@@ -284,6 +284,8 @@ export function App() {
           const parsed = parseIsarFile(session.buffer, session.fileName);
           if (!mounted) return;
           setDb(parsed);
+          lastModifiedRef.current = session.lastModified || 0;
+          lastSizeRef.current = session.buffer.byteLength;
           const targetCol =
             session.selectedCollection && parsed.collectionMap.has(session.selectedCollection)
               ? session.selectedCollection

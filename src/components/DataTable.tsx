@@ -88,14 +88,20 @@ export const DataTable: React.FC<DataTableProps> = ({
   const [draftOp, setDraftOp] = useState<FilterOperator>('contains');
   const [draftVal, setDraftVal] = useState<string>('');
 
+  const prevColNameRef = React.useRef<string>(collection.schema.name);
+
   // Auto-detect likely microsecond DateTime Long columns on collection switch
   useEffect(() => {
-    setGlobalSearch('');
-    setFilters([]);
-    setSort({ field: '__id__', direction: 'asc' });
-    setPage(1);
-    setHiddenCols(new Set());
-    setDraftField('__id__');
+    // Only reset search, filters, and pagination when switching to a DIFFERENT collection
+    if (prevColNameRef.current !== collection.schema.name) {
+      prevColNameRef.current = collection.schema.name;
+      setGlobalSearch('');
+      setFilters([]);
+      setSort({ field: '__id__', direction: 'asc' });
+      setPage(1);
+      setHiddenCols(new Set());
+      setDraftField('__id__');
+    }
 
     const autoDates = new Set<string>();
     const sampleRows = collection.rows.slice(0, 15);
@@ -113,7 +119,7 @@ export const DataTable: React.FC<DataTableProps> = ({
       }
     }
     setDateCols(autoDates);
-  }, [collection.schema.name, activeProps, collection.rows]);
+  }, [collection.schema.name]);
 
   const filteredRows = useMemo(
     () => queryRows(collection.rows, globalSearch, filters, sort),
@@ -265,13 +271,26 @@ export const DataTable: React.FC<DataTableProps> = ({
               type="text"
               value={globalSearch}
               onChange={(e) => setGlobalSearch(e.target.value)}
+              onPaste={(e) => {
+                const text = e.clipboardData.getData('text');
+                if (text && (text.includes('\n') || text.includes('\r'))) {
+                  e.preventDefault();
+                  const cleaned = text.replace(/[\r\n]+/g, ' ').trim();
+                  setGlobalSearch(cleaned);
+                }
+              }}
               placeholder={`Search ${collection.schema.name} (${collection.rows.length} rows)...`}
               className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg bg-slate-100/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500/60 placeholder:text-slate-400"
             />
             {globalSearch && (
               <button
                 type="button"
-                onClick={() => setGlobalSearch('')}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGlobalSearch('');
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
+                title="Clear search"
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
