@@ -14,7 +14,7 @@ import {
 
 interface DropZoneProps {
   onOpenPicker: () => void;
-  onDropFile: (file: File) => void;
+  onDrop: (e: React.DragEvent) => void;
   onLoadSample: () => void;
   error: string | null;
   loading: boolean;
@@ -24,7 +24,7 @@ interface DropZoneProps {
 
 export const DropZone: React.FC<DropZoneProps> = ({
   onOpenPicker,
-  onDropFile,
+  onDrop,
   onLoadSample,
   error,
   loading,
@@ -43,8 +43,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) onDropFile(file);
+    onDrop(e);
   };
 
   return (
@@ -104,7 +103,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
             {loading ? 'Parsing .isar database...' : 'Drop your .isar file here'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            or click to select from your computer — automatically activates Live Watch mode!
+            Drop or click to open from your computer — automatically activates Live Watch mode!
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
@@ -130,8 +129,8 @@ export const DropZone: React.FC<DropZoneProps> = ({
         </div>
 
         {error && (
-          <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-sm flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold">Notice</p>
               <p className="text-xs opacity-90 mt-0.5 leading-relaxed">{error}</p>

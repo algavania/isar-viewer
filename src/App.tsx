@@ -333,6 +333,36 @@ export function App() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [db, activeView, currentCol, selectedRow]);
 
+  const handleDropEvent = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDraggingOverApp(false);
+
+    // Try modern File System Access API from drag-and-drop items (Chrome, Edge, Arc)
+    const item = e.dataTransfer.items?.[0];
+    if (item && typeof (item as any).getAsFileSystemHandle === 'function') {
+      try {
+        const handle = await (item as any).getAsFileSystemHandle();
+        if (handle && handle.kind === 'file') {
+          fileHandleRef.current = handle;
+          const file = await handle.getFile();
+          await loadFromFile(file, false);
+          setAutoWatch(true);
+          return;
+        }
+      } catch (err) {
+        console.warn('Could not get FileSystemHandle from drop event:', err);
+      }
+    }
+
+    // Fallback for browsers without getAsFileSystemHandle (e.g. Firefox/Safari)
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      fileHandleRef.current = null;
+      setAutoWatch(false);
+      await loadFromFile(file, false);
+    }
+  };
+
   const hiddenInput = (
     <input
       ref={hiddenInputRef}
@@ -357,11 +387,7 @@ export function App() {
         {hiddenInput}
         <DropZone
           onOpenPicker={() => handleOpenPicker(true)}
-          onDropFile={(f) => {
-            fileHandleRef.current = null;
-            setAutoWatch(false);
-            loadFromFile(f, false);
-          }}
+          onDrop={handleDropEvent}
           onLoadSample={handleLoadSample}
           error={error}
           loading={loading}
@@ -379,16 +405,7 @@ export function App() {
         setDraggingOverApp(true);
       }}
       onDragLeave={() => setDraggingOverApp(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDraggingOverApp(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f) {
-          fileHandleRef.current = null;
-          setAutoWatch(false);
-          loadFromFile(f, false);
-        }
-      }}
+      onDrop={handleDropEvent}
       className="h-screen flex flex-col bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 overflow-hidden relative"
     >
       {hiddenInput}
