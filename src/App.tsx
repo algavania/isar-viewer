@@ -1,5 +1,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { parseIsarFile, IsarDatabaseModel, DecodedRow } from './core/isarDatabase';
+import {
+  saveActiveSession,
+  restoreActiveSession,
+  updateSessionMetadata,
+  clearActiveSession,
+} from './core/sessionStorage';
 import { DropZone } from './components/DropZone';
 import { TopBar, AppView } from './components/TopBar';
 import { Sidebar } from './components/Sidebar';
@@ -10,6 +16,7 @@ import { MdbxInternalsView } from './components/MdbxInternalsView';
 
 interface FileSystemFileHandleLike {
   getFile: () => Promise<File>;
+  queryPermission?: (descriptor?: { mode: 'read' | 'readwrite' }) => Promise<PermissionState>;
 }
 
 declare global {
@@ -71,6 +78,13 @@ export function App() {
     };
   }, []);
 
+  // Update session metadata (active view & collection) whenever they change
+  useEffect(() => {
+    if (db) {
+      updateSessionMetadata({ selectedCollection, activeView });
+    }
+  }, [db, selectedCollection, activeView]);
+
   const loadFromFile = useCallback(
     async (file: File, keepSelection = false) => {
       setLoading(true);
@@ -91,20 +105,32 @@ export function App() {
         lastSizeRef.current = file.size;
         setDb(parsed);
 
+        let targetCol = selectedCollection;
         if (!keepSelection || !parsed.collectionMap.has(selectedCollection)) {
-          setSelectedCollection(parsed.collections[0]?.schema.name ?? '');
+          targetCol = parsed.collections[0]?.schema.name ?? '';
+          setSelectedCollection(targetCol);
           setSelectedRow(null);
         } else if (selectedRow) {
           const refreshedCol = parsed.collectionMap.get(selectedCollection);
           setSelectedRow(refreshedCol?.rowById.get(selectedRow.idLabel) ?? null);
         }
+
+        // Persist session to IndexedDB so page refresh restores the file
+        saveActiveSession({
+          fileName: file.name,
+          buffer: buf,
+          handle: fileHandleRef.current,
+          selectedCollection: targetCol,
+          activeView,
+          lastModified: file.lastModified,
+        });
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       } finally {
         setLoading(false);
       }
     },
-    [selectedCollection, selectedRow]
+    [selectedCollection, selectedRow, activeView]
   );
 
   const handleInspectPath = useCallback(async (pathInput: string) => {
@@ -123,7 +149,6 @@ export function App() {
       const res = await fetch(`/api/file?path=${encodeURIComponent(trimmed)}`);
       const contentType = res.headers.get('content-type') || '';
 
-      // If running on a remote static website, /api/file returns index.html or 404
       if (!res.ok || contentType.includes('text/html')) {
         throw new Error(
           `Direct local path input requires running Isar Viewer locally (via npm run dev or npm run inspect). ` +
@@ -142,9 +167,19 @@ export function App() {
 
       const parsed = parseIsarFile(buf, fileName);
       setDb(parsed);
-      setSelectedCollection(parsed.collections[0]?.schema.name ?? '');
+      const defaultCol = parsed.collections[0]?.schema.name ?? '';
+      setSelectedCollection(defaultCol);
       setSelectedRow(null);
       setWatchedPath(resolvedPath);
+
+      // Persist active session
+      saveActiveSession({
+        fileName,
+        buffer: buf,
+        handle: null,
+        selectedCollection: defaultCol,
+        activeView: 'data',
+      });
 
       // Save to recent paths in localStorage
       try {
@@ -178,6 +213,15 @@ export function App() {
             }
             return null;
           });
+
+          // Update persisted session buffer
+          saveActiveSession({
+            fileName,
+            buffer: freshBuf,
+            handle: null,
+            selectedCollection: defaultCol,
+            activeView: 'data',
+          });
         } catch (e) {
           console.error('Failed to hot-reload database:', e);
         }
@@ -191,16 +235,80 @@ export function App() {
     }
   }, []);
 
-  // Support ?path=... or ?inspect=... URL parameter on initial load
+  // Restore session from IndexedDB across page refreshes or check ?path=... URL parameter
   useEffect(() => {
+    let mounted = true;
+
     const params = new URLSearchParams(window.location.search);
     const targetPath = params.get('path') || params.get('inspect');
     if (targetPath) {
       handleInspectPath(targetPath);
+      return;
     }
+
+    const restoreSession = async () => {
+      try {
+        const session = await restoreActiveSession();
+        if (!session || !mounted) return;
+
+        // Try restoring using stored FileSystemFileHandle if permission is granted
+        if (session.handle && typeof session.handle.getFile === 'function') {
+          try {
+            const perm = await session.handle.queryPermission?.({ mode: 'read' });
+            if (perm === 'granted') {
+              fileHandleRef.current = session.handle;
+              const freshFile = await session.handle.getFile();
+              const freshBuf = await freshFile.arrayBuffer();
+              const parsed = parseIsarFile(freshBuf, freshFile.name);
+              if (!mounted) return;
+              setDb(parsed);
+              lastModifiedRef.current = freshFile.lastModified;
+              lastSizeRef.current = freshFile.size;
+
+              const targetCol =
+                session.selectedCollection && parsed.collectionMap.has(session.selectedCollection)
+                  ? session.selectedCollection
+                  : parsed.collections[0]?.schema.name ?? '';
+              setSelectedCollection(targetCol);
+              if (session.activeView) setActiveView(session.activeView);
+              setAutoWatch(true);
+              return;
+            }
+          } catch {
+            // Fall through to cached buffer
+          }
+        }
+
+        // Fallback to cached binary buffer stored in IndexedDB
+        if (session.buffer && session.buffer.byteLength >= 12288) {
+          const parsed = parseIsarFile(session.buffer, session.fileName);
+          if (!mounted) return;
+          setDb(parsed);
+          const targetCol =
+            session.selectedCollection && parsed.collectionMap.has(session.selectedCollection)
+              ? session.selectedCollection
+              : parsed.collections[0]?.schema.name ?? '';
+          setSelectedCollection(targetCol);
+          if (session.activeView) setActiveView(session.activeView);
+          if (session.handle) {
+            fileHandleRef.current = session.handle;
+            setAutoWatch(true);
+          }
+        }
+      } catch (err) {
+        console.warn('Could not restore previous database session:', err);
+      }
+    };
+
+    restoreSession();
+
+    return () => {
+      mounted = false;
+    };
   }, [handleInspectPath]);
 
   const handleBackToLanding = useCallback(() => {
+    clearActiveSession();
     setDb(null);
     setSelectedCollection('');
     setSelectedRow(null);
@@ -286,9 +394,19 @@ export function App() {
       const buf = await res.arrayBuffer();
       const parsed = parseIsarFile(buf, 'sample.isar');
       setDb(parsed);
-      setSelectedCollection(parsed.collections[0]?.schema.name ?? '');
+      const defaultCol = parsed.collections[0]?.schema.name ?? '';
+      setSelectedCollection(defaultCol);
       setSelectedRow(null);
       setActiveView('data');
+
+      // Persist sample database in session
+      saveActiveSession({
+        fileName: 'sample.isar',
+        buffer: buf,
+        handle: null,
+        selectedCollection: defaultCol,
+        activeView: 'data',
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
