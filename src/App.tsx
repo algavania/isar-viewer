@@ -363,7 +363,6 @@ export function App() {
             loadFromFile(f, false);
           }}
           onLoadSample={handleLoadSample}
-          onInspectPath={handleInspectPath}
           error={error}
           loading={loading}
           dark={dark}
