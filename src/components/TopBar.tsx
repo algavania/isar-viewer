@@ -96,6 +96,16 @@ export const TopBar: React.FC<TopBarProps> = ({
             </div>
           )}
 
+          {autoWatch && !watchedPath && (
+            <div
+              className="hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-mono shrink-0"
+              title="Live disk watch active — Auto-refreshes on save"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live Watching</span>
+            </div>
+          )}
+
           <div className="hidden xl:flex items-center gap-1.5 text-[11px] font-mono text-slate-500 dark:text-slate-400">
             <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               {db.mdbx.pagesize / 1024}KB pages

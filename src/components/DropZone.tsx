@@ -11,6 +11,8 @@ import {
   Moon,
   Radio,
   Terminal,
+  FolderOpen,
+  Info,
 } from 'lucide-react';
 
 interface DropZoneProps {
@@ -37,9 +39,15 @@ export const DropZone: React.FC<DropZoneProps> = ({
   const [dragging, setDragging] = useState(false);
   const [pathInput, setPathInput] = useState('');
   const [recentPaths, setRecentPaths] = useState<string[]>([]);
-  const [isServerReady, setIsServerReady] = useState<boolean>(true);
+  const [isServerReady, setIsServerReady] = useState<boolean>(false);
 
-  // Load recent paths from localStorage
+  const isLocalHost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '[::1]');
+
+  // Load recent paths from localStorage and check dev server status
   useEffect(() => {
     try {
       const stored = localStorage.getItem('isar-viewer-recent-paths');
@@ -52,9 +60,15 @@ export const DropZone: React.FC<DropZoneProps> = ({
       }
     } catch {}
 
-    // Check if local dev/preview server is responding
+    // Check if local dev/preview server is responding with actual JSON
     fetch('/api/status')
-      .then((r) => r.json())
+      .then((r) => {
+        const contentType = r.headers.get('content-type') || '';
+        if (r.ok && contentType.includes('application/json')) {
+          return r.json();
+        }
+        return null;
+      })
       .then((data) => setIsServerReady(Boolean(data?.ok)))
       .catch(() => setIsServerReady(false));
   }, []);
@@ -76,6 +90,14 @@ export const DropZone: React.FC<DropZoneProps> = ({
   const handlePathSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pathInput.trim() || loading) return;
+
+    if (!isLocalHost && !isServerReady) {
+      // On remote web, direct local path reading is blocked by browser sandbox
+      // Guide user to the native file picker which enables direct disk Live Watch
+      onOpenPicker();
+      return;
+    }
+
     await onInspectPath(pathInput.trim());
   };
 
@@ -130,18 +152,40 @@ export const DropZone: React.FC<DropZoneProps> = ({
             {isServerReady ? (
               <span className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                Live Watcher Ready
+                Live Node Engine Active
               </span>
             ) : (
-              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
-                Browser Mode
+              <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
+                Web Sandbox Mode
               </span>
             )}
           </div>
 
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
-            Specify the file path to your local <code className="text-emerald-600 dark:text-emerald-400 font-mono">.isar</code> database. The viewer will inspect it and automatically re-render in realtime as your Flutter app writes changes.
-          </p>
+          {!isLocalHost && !isServerReady ? (
+            <div className="mb-3.5 p-3 rounded-xl bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800/60 text-sky-900 dark:text-sky-200 text-xs leading-relaxed flex items-start gap-2.5">
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-sky-500" />
+              <div>
+                <p className="font-semibold mb-0.5">Running on Hosted Web ({window.location.hostname})</p>
+                <p className="text-[11px] opacity-90">
+                  Browser security sandbox strictly forbids web pages from reading hard drive path strings (e.g.{' '}
+                  <code className="font-mono bg-sky-100 dark:bg-sky-900/60 px-1 py-0.2 rounded">/Users/...</code> or{' '}
+                  <code className="font-mono bg-sky-100 dark:bg-sky-900/60 px-1 py-0.2 rounded">C:\...</code>) directly.
+                </p>
+                <p className="text-[11px] mt-1 text-emerald-700 dark:text-emerald-400 font-medium">
+                  👉 To inspect and auto-watch your local file in realtime here, click{' '}
+                  <strong className="underline cursor-pointer" onClick={onOpenPicker}>
+                    "Open .isar File (Live Watch)"
+                  </strong>{' '}
+                  below.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 leading-relaxed">
+              Specify your local <code className="text-emerald-600 dark:text-emerald-400 font-mono">.isar</code> file path.
+              The viewer will inspect it and automatically re-render in realtime as your Flutter app writes changes.
+            </p>
+          )}
 
           <form onSubmit={handlePathSubmit} className="flex flex-col sm:flex-row gap-2">
             <div className="relative flex-1">
@@ -160,19 +204,32 @@ export const DropZone: React.FC<DropZoneProps> = ({
               disabled={loading || !pathInput.trim()}
               className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 cursor-pointer shrink-0"
             >
-              <Radio className="w-3.5 h-3.5 animate-pulse" />
-              <span>{loading ? 'Inspecting...' : 'Inspect Realtime'}</span>
+              {isServerReady ? (
+                <>
+                  <Radio className="w-3.5 h-3.5 animate-pulse" />
+                  <span>{loading ? 'Inspecting...' : 'Inspect Realtime'}</span>
+                </>
+              ) : (
+                <>
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  <span>Select & Live Watch</span>
+                </>
+              )}
             </button>
           </form>
 
           {/* Quick suggestions / recent paths */}
           <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className="text-slate-400 text-[10px] uppercase font-semibold">Quick Load:</span>
+            <span className="text-slate-400 text-[10px] uppercase font-semibold">Quick Test:</span>
             <button
               type="button"
               onClick={() => {
-                setPathInput('./public/sample.isar');
-                onInspectPath('./public/sample.isar');
+                if (isServerReady) {
+                  setPathInput('./public/sample.isar');
+                  onInspectPath('./public/sample.isar');
+                } else {
+                  onLoadSample();
+                }
               }}
               className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/80 hover:bg-emerald-500/10 hover:text-emerald-500 text-slate-600 dark:text-slate-300 font-mono transition-colors cursor-pointer"
             >
@@ -186,12 +243,16 @@ export const DropZone: React.FC<DropZoneProps> = ({
                   type="button"
                   onClick={() => {
                     setPathInput(p);
-                    onInspectPath(p);
+                    if (isServerReady) {
+                      onInspectPath(p);
+                    } else {
+                      onOpenPicker();
+                    }
                   }}
                   className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800/80 hover:bg-emerald-500/10 hover:text-emerald-500 text-slate-600 dark:text-slate-300 font-mono truncate max-w-[200px] transition-colors cursor-pointer"
                   title={p}
                 >
-                  {p.split('/').pop()}
+                  {p.split(/[/\\]/).pop()}
                 </button>
               ))}
           </div>
@@ -201,7 +262,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
         <div className="relative flex py-2 items-center mb-5">
           <div className="flex-grow border-t border-slate-200 dark:border-slate-800/90"></div>
           <span className="flex-shrink mx-4 text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
-            Or Open Local File Manually
+            Native Browser File System (Direct Disk Access)
           </span>
           <div className="flex-grow border-t border-slate-200 dark:border-slate-800/90"></div>
         </div>
@@ -226,7 +287,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
             {loading ? 'Parsing .isar database...' : 'Drop your .isar file here'}
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-5">
-            or click to browse from your computer — works without Dart schemas
+            or click to select from your computer — automatically activates Live Watch mode!
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
@@ -234,9 +295,10 @@ export const DropZone: React.FC<DropZoneProps> = ({
               type="button"
               onClick={onOpenPicker}
               disabled={loading}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium shadow-md shadow-emerald-600/20 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium shadow-md shadow-emerald-600/20 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
             >
-              Open .isar File
+              <Radio className="w-3.5 h-3.5 animate-pulse text-emerald-200" />
+              <span>Open .isar File (Live Watch)</span>
             </button>
             <button
               type="button"
@@ -254,8 +316,8 @@ export const DropZone: React.FC<DropZoneProps> = ({
           <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-3">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
-              <p className="font-semibold">Could not open database</p>
-              <p className="opacity-90 mt-0.5">{error}</p>
+              <p className="font-semibold">Notice</p>
+              <p className="opacity-90 mt-0.5 leading-relaxed">{error}</p>
             </div>
           </div>
         )}
@@ -285,7 +347,7 @@ export const DropZone: React.FC<DropZoneProps> = ({
               Realtime Live Watch
             </div>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-              Hot reloads grid and schemas whenever Flutter updates the <code className="text-[10px]">.isar</code> file.
+              Hot-reloads grid and schemas whenever Flutter updates the <code className="text-[10px]">.isar</code> file.
             </p>
           </div>
         </div>

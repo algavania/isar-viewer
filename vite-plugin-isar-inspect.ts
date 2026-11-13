@@ -4,8 +4,8 @@ import path from 'node:path';
 import os from 'node:os';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
-function resolveHomePath(inputPath: string): string {
-  const trimmed = inputPath.trim();
+export function resolveHomePath(inputPath: string): string {
+  let trimmed = inputPath.trim().replace(/^["']|["']$/g, '');
   if (trimmed.startsWith('~/') || trimmed === '~') {
     return path.join(os.homedir(), trimmed.slice(1));
   }

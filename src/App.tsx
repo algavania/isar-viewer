@@ -42,6 +42,7 @@ export function App() {
 
   const fileHandleRef = useRef<FileSystemFileHandleLike | null>(null);
   const lastModifiedRef = useRef<number>(0);
+  const lastSizeRef = useRef<number>(0);
   const hiddenInputRef = useRef<HTMLInputElement | null>(null);
   const sseRef = useRef<EventSource | null>(null);
 
@@ -82,8 +83,12 @@ export function App() {
 
       try {
         const buf = await file.arrayBuffer();
+        if (buf.byteLength < 12288) {
+          throw new Error('File is too small to be a valid .isar (MDBX) database.');
+        }
         const parsed = parseIsarFile(buf, file.name);
         lastModifiedRef.current = file.lastModified;
+        lastSizeRef.current = file.size;
         setDb(parsed);
 
         if (!keepSelection || !parsed.collectionMap.has(selectedCollection)) {
@@ -103,7 +108,7 @@ export function App() {
   );
 
   const handleInspectPath = useCallback(async (pathInput: string) => {
-    const trimmed = pathInput.trim();
+    const trimmed = pathInput.trim().replace(/^["']|["']$/g, '');
     if (!trimmed) return;
     setLoading(true);
     setError(null);
@@ -116,13 +121,23 @@ export function App() {
 
     try {
       const res = await fetch(`/api/file?path=${encodeURIComponent(trimmed)}`);
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => null);
-        throw new Error(errJson?.error || `HTTP ${res.status}: Could not load file at ${trimmed}`);
+      const contentType = res.headers.get('content-type') || '';
+
+      // If running on a remote static website, /api/file returns index.html or 404
+      if (!res.ok || contentType.includes('text/html')) {
+        throw new Error(
+          `Direct local path input requires running Isar Viewer locally (via npm run dev or npm run inspect). ` +
+          `Due to web browser sandbox security, public websites cannot read files directly from your hard drive (${trimmed}). ` +
+          `Please click "Open .isar File (Live Watch)" to select your file — it will auto-reload in realtime!`
+        );
       }
 
       const buf = await res.arrayBuffer();
-      const fileName = res.headers.get('X-File-Name') || trimmed.split('/').pop() || 'database.isar';
+      if (buf.byteLength < 12288) {
+        throw new Error(`File is too small to be a valid .isar (MDBX) database (${buf.byteLength} bytes).`);
+      }
+
+      const fileName = res.headers.get('X-File-Name') || trimmed.split(/[/\\]/).pop() || 'database.isar';
       const resolvedPath = res.headers.get('X-Resolved-Path') || trimmed;
 
       const parsed = parseIsarFile(buf, fileName);
@@ -150,7 +165,6 @@ export function App() {
           const freshParsed = parseIsarFile(freshBuf, fileName);
           setDb(freshParsed);
 
-          // Preserve selected collection and row if still valid
           setSelectedCollection((prevCol) => {
             if (prevCol && freshParsed.collectionMap.has(prevCol)) return prevCol;
             return freshParsed.collections[0]?.schema.name ?? '';
@@ -169,9 +183,7 @@ export function App() {
         }
       });
 
-      sse.onerror = () => {
-        // SSE network disconnect / reconnection is handled automatically by browser
-      };
+      sse.onerror = () => {};
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -202,7 +214,7 @@ export function App() {
     }
   }, []);
 
-  const handleOpenPicker = async () => {
+  const handleOpenPicker = async (enableWatch = true) => {
     if (window.showOpenFilePicker) {
       try {
         const [handle] = await window.showOpenFilePicker({
@@ -218,6 +230,9 @@ export function App() {
           fileHandleRef.current = handle;
           const file = await handle.getFile();
           await loadFromFile(file, false);
+          if (enableWatch) {
+            setAutoWatch(true);
+          }
         }
         return;
       } catch (err) {
@@ -237,19 +252,20 @@ export function App() {
     }
   }, [loadFromFile]);
 
-  // Live watch polling when File System Access handle is active
+  // Live watch polling when File System Access handle is active (1s interval)
   useEffect(() => {
     if (!autoWatch || !fileHandleRef.current) return;
     const timer = setInterval(async () => {
       try {
         const file = await fileHandleRef.current!.getFile();
-        if (file.lastModified !== lastModifiedRef.current) {
+        if (file.lastModified !== lastModifiedRef.current || file.size !== lastSizeRef.current) {
+          lastSizeRef.current = file.size;
           await loadFromFile(file, true);
         }
       } catch {
         setAutoWatch(false);
       }
-    }, 2000);
+    }, 1000);
     return () => clearInterval(timer);
   }, [autoWatch, loadFromFile]);
 
@@ -340,7 +356,7 @@ export function App() {
       <>
         {hiddenInput}
         <DropZone
-          onOpenPicker={handleOpenPicker}
+          onOpenPicker={() => handleOpenPicker(true)}
           onDropFile={(f) => {
             fileHandleRef.current = null;
             setAutoWatch(false);
@@ -399,7 +415,7 @@ export function App() {
         db={db}
         activeView={activeView}
         onChangeView={setActiveView}
-        onOpenPicker={handleOpenPicker}
+        onOpenPicker={() => handleOpenPicker(true)}
         onReload={handleReload}
         canReload={Boolean(fileHandleRef.current)}
         autoWatch={autoWatch}
