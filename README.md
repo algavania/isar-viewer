@@ -4,6 +4,8 @@
 
 **Modern, standalone, offline web viewer and inspector for Flutter [Isar Database](https://isar.dev) (`.isar`) files.**
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-isar--viewer.algavania.com-8b5cf6?style=for-the-badge&logo=google-chrome&logoColor=white)](https://isar-viewer.algavania.com)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-emerald.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue.svg?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-19-61dafb.svg?logo=react&logoColor=black)](https://react.dev/)
@@ -16,6 +18,10 @@
 <p align="center">
   <b>No Flutter runtime required. No Dart models required. No emulator needed.</b><br />
   Drag & drop any raw <code>.isar</code> file straight into your browser to inspect collections, resolve relational links, explore schemas, and export to JSON or CSV.
+</p>
+
+<p align="center">
+  👉 <b>Try it now in your browser: <a href="https://isar-viewer.algavania.com">https://isar-viewer.algavania.com</a></b>
 </p>
 
 </div>
@@ -113,11 +119,16 @@ flowchart TD
 
 ## 🚀 Quick Start
 
-### Prerequisites
+### 🌐 Try Online (No Setup Needed)
+Access the web viewer directly at **[isar-viewer.algavania.com](https://isar-viewer.algavania.com)**. Since processing is 100% client-side, your database files never leave your device.
+
+### Local Development
+
+#### Prerequisites
 - Node.js 18+ (tested on Node 20 / 22 / 24)
 - npm, pnpm, or bun
 
-### Installation & Run
+#### Installation & Run
 
 ```bash
 # Clone the repository
