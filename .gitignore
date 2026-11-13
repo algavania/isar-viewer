@@ -39,3 +39,4 @@ dist-ssr/
 *.sw?
 .DS_Store
 Thumbs.db
+tsconfig.tsbuildinfo
