@@ -72,6 +72,60 @@ function handleInspectMiddleware(req: IncomingMessage, res: ServerResponse, next
     }
   }
 
+  if (pathname === '/api/save' && req.method === 'POST') {
+    const rawPath = parsedUrl.searchParams.get('path') || (req.headers['x-target-path'] as string);
+    if (!rawPath) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Missing path query parameter or X-Target-Path header' }));
+      return;
+    }
+
+    try {
+      const resolved = resolveHomePath(rawPath);
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      req.on('end', () => {
+        try {
+          const body = Buffer.concat(chunks);
+          if (body.length < 4096) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Payload is too small to be a valid .isar database' }));
+            return;
+          }
+
+          // If original file exists, create backup (.bak)
+          if (fs.existsSync(resolved)) {
+            const backupPath = `${resolved}.bak`;
+            fs.copyFileSync(resolved, backupPath);
+          }
+
+          fs.writeFileSync(resolved, body);
+
+          res.writeHead(200, {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          });
+          res.end(
+            JSON.stringify({
+              ok: true,
+              path: resolved,
+              bytesWritten: body.length,
+              backupPath: fs.existsSync(`${resolved}.bak`) ? `${resolved}.bak` : null,
+            })
+          );
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+      });
+      return;
+    } catch (err) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+      return;
+    }
+  }
+
   if (pathname === '/api/watch') {
     const rawPath = parsedUrl.searchParams.get('path');
     if (!rawPath) {

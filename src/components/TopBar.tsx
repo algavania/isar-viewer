@@ -11,6 +11,8 @@ import {
   Radio,
   ArrowLeft,
   Archive,
+  Save,
+  RotateCcw,
 } from 'lucide-react';
 import { IsarDatabaseModel } from '../core/isarDatabase';
 
@@ -30,6 +32,9 @@ interface TopBarProps {
   onBackToLanding: () => void;
   watchedPath?: string | null;
   onOpenExportZip?: () => void;
+  pendingMutationsCount?: number;
+  onOpenSaveIsar?: () => void;
+  onDiscardChanges?: () => void;
 }
 
 export function formatBytes(bytes: number): string {
@@ -52,6 +57,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   onBackToLanding,
   watchedPath,
   onOpenExportZip,
+  pendingMutationsCount = 0,
+  onOpenSaveIsar,
+  onDiscardChanges,
 }) => {
   const navItems: { id: AppView; label: string; icon: React.ReactNode }[] = [
     { id: 'data', label: 'Data Explorer', icon: <Table2 className="w-3.5 h-3.5" /> },
@@ -180,6 +188,42 @@ export const TopBar: React.FC<TopBarProps> = ({
             <Archive className="w-3.5 h-3.5 text-emerald-500" />
             <span className="hidden sm:inline">Export ZIP</span>
           </button>
+        )}
+
+        {pendingMutationsCount > 0 ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onOpenSaveIsar}
+              title="Save modified database as new .isar file"
+              className="px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-700 dark:text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs animate-pulse"
+            >
+              <Save className="w-3.5 h-3.5 text-amber-500" />
+              <span>Save .isar ({pendingMutationsCount})</span>
+            </button>
+            {onDiscardChanges && (
+              <button
+                type="button"
+                onClick={onDiscardChanges}
+                title="Discard all pending changes"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-100 dark:hover:bg-slate-900 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ) : (
+          onOpenSaveIsar && (
+            <button
+              type="button"
+              onClick={onOpenSaveIsar}
+              title="Save / Export database as .isar file"
+              className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            >
+              <Save className="w-3.5 h-3.5 text-cyan-500" />
+              <span className="hidden sm:inline">Save .isar</span>
+            </button>
+          )
         )}
 
         <button

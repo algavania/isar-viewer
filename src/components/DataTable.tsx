@@ -16,6 +16,8 @@ import {
   Link2,
   Plus,
   Archive,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import {
   CollectionData,
@@ -36,6 +38,9 @@ interface DataTableProps {
   selectedRowId: string | null;
   onSelectRow: (row: DecodedRow) => void;
   onOpenExportZip?: () => void;
+  onEditRow?: (row: DecodedRow) => void;
+  onDeleteRow?: (row: DecodedRow) => void;
+  modifiedRowIds?: Set<string>;
 }
 
 const OPERATORS: { value: FilterOperator; label: string }[] = [
@@ -65,6 +70,9 @@ export const DataTable: React.FC<DataTableProps> = ({
   selectedRowId,
   onSelectRow,
   onOpenExportZip,
+  onEditRow,
+  onDeleteRow,
+  modifiedRowIds,
 }) => {
   const activeProps = useMemo(
     () => collection.schema.properties.filter((p): p is IsarPropertySchema & { name: string } => p.name !== null),
@@ -604,6 +612,10 @@ export const DataTable: React.FC<DataTableProps> = ({
                   </div>
                 </th>
               ))}
+
+              <th className="px-3 py-2.5 text-[11px] font-semibold text-slate-600 dark:text-slate-300 whitespace-nowrap text-right">
+                Actions
+              </th>
             </tr>
           </thead>
 
@@ -614,14 +626,21 @@ export const DataTable: React.FC<DataTableProps> = ({
                 <tr
                   key={row.idLabel}
                   onClick={() => onSelectRow(row)}
-                  className={`cursor-pointer transition-colors ${
+                  className={`group cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-emerald-500/12 dark:bg-emerald-500/15'
                       : 'hover:bg-slate-50 dark:hover:bg-slate-900/60'
                   }`}
                 >
                   <td className="px-3.5 py-2 font-mono text-xs font-medium text-emerald-700 dark:text-emerald-400 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50">
-                    {row.idLabel}
+                    <div className="flex items-center gap-1.5">
+                      <span>{row.idLabel}</span>
+                      {modifiedRowIds?.has(row.idLabel) && (
+                        <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                          edited
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {activeProps
@@ -655,6 +674,35 @@ export const DataTable: React.FC<DataTableProps> = ({
                       </td>
                     );
                   })}
+
+                  <td className="px-3 py-1.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 hover:opacity-100 transition-opacity">
+                      {onEditRow && (
+                        <button
+                          type="button"
+                          onClick={() => onEditRow(row)}
+                          title="Edit this record"
+                          className="p-1 rounded-md text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {onDeleteRow && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Delete record #${row.idLabel} from ${collection.schema.name}?`)) {
+                              onDeleteRow(row);
+                            }
+                          }}
+                          title="Delete this record"
+                          className="p-1 rounded-md text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -662,7 +710,7 @@ export const DataTable: React.FC<DataTableProps> = ({
             {pagedRows.length === 0 && (
               <tr>
                 <td
-                  colSpan={1 + activeProps.length + collection.schema.links.length}
+                  colSpan={2 + activeProps.length + collection.schema.links.length}
                   className="py-16 text-center text-sm text-slate-400"
                 >
                   {collection.rows.length === 0

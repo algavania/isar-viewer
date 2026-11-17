@@ -116,4 +116,46 @@ describe('Vite Isar Inspect Plugin Middleware', () => {
       fs.unlinkSync(testFile);
     } catch {}
   });
+
+  it('handles /api/save endpoint and writes file with backup', async () => {
+    const tmpDir = os.tmpdir();
+    const testFile = path.join(tmpDir, `test-save-${Date.now()}.isar`);
+    fs.writeFileSync(testFile, Buffer.alloc(5000, 1));
+
+    const req: any = new http.IncomingMessage(null as any);
+    req.method = 'POST';
+    req.url = `/api/save?path=${encodeURIComponent(testFile)}`;
+
+    let statusCode = 200;
+    const chunks: Buffer[] = [];
+    const res: any = {
+      writeHead: (code: number) => {
+        statusCode = code;
+      },
+      end: (chunk?: any) => {
+        if (chunk) chunks.push(Buffer.from(chunk));
+      },
+    };
+
+    middleware(req, res, () => {});
+
+    // Write simulated 5000 byte payload
+    const newContent = Buffer.alloc(5000, 2);
+    req.emit('data', newContent);
+    req.emit('end');
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(statusCode).toBe(200);
+    const resultJson = JSON.parse(Buffer.concat(chunks).toString());
+    expect(resultJson.ok).toBe(true);
+    expect(fs.readFileSync(testFile)[0]).toBe(2);
+    expect(fs.existsSync(`${testFile}.bak`)).toBe(true);
+    expect(fs.readFileSync(`${testFile}.bak`)[0]).toBe(1);
+
+    try {
+      fs.unlinkSync(testFile);
+      fs.unlinkSync(`${testFile}.bak`);
+    } catch {}
+  });
 });

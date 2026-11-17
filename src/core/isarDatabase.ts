@@ -31,6 +31,7 @@ export interface CollectionData {
 export interface IsarDatabaseModel {
   fileName: string;
   loadedAt: Date;
+  rawBuffer?: ArrayBuffer;
   mdbx: MdbxDatabase;
   collections: CollectionData[];
   embeddedSchemas: IsarCollectionSchema[];
@@ -174,6 +175,7 @@ export function parseIsarFile(buffer: ArrayBuffer, fileName: string): IsarDataba
   return {
     fileName,
     loadedAt: new Date(),
+    rawBuffer: buffer,
     mdbx,
     collections,
     embeddedSchemas,

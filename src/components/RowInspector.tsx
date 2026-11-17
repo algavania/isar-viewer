@@ -11,6 +11,8 @@ import {
   FileJson,
   Binary,
   ListTree,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import {
   CollectionData,
@@ -29,6 +31,8 @@ interface RowInspectorProps {
   row: DecodedRow;
   onClose: () => void;
   onNavigateToRecord: (collectionName: string, rowId: string) => void;
+  onEditRow?: (collectionName: string, row: DecodedRow) => void;
+  onDeleteRow?: (collectionName: string, row: DecodedRow) => void;
 }
 
 type InspectorTab = 'tree' | 'json' | 'binary';
@@ -174,6 +178,8 @@ export const RowInspector: React.FC<RowInspectorProps> = ({
   row,
   onClose,
   onNavigateToRecord,
+  onEditRow,
+  onDeleteRow,
 }) => {
   const [tab, setTab] = useState<InspectorTab>('tree');
   const [copiedJson, setCopiedJson] = useState(false);
@@ -207,6 +213,33 @@ export const RowInspector: React.FC<RowInspectorProps> = ({
         </div>
 
         <div className="flex items-center gap-1.5">
+          {onEditRow && (
+            <button
+              type="button"
+              onClick={() => onEditRow(collection.schema.name, row)}
+              title="Edit this record"
+              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-medium flex items-center gap-1.5 cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              <span>Edit</span>
+            </button>
+          )}
+
+          {onDeleteRow && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete record #${row.idLabel} from ${collection.schema.name}?`)) {
+                  onDeleteRow(collection.schema.name, row);
+                }
+              }}
+              title="Delete this record"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={handleCopyJson}

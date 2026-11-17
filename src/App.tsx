@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { parseIsarFile, IsarDatabaseModel, DecodedRow } from './core/isarDatabase';
 import {
   saveActiveSession,
@@ -14,6 +14,10 @@ import { RowInspector } from './components/RowInspector';
 import { SchemaView } from './components/SchemaView';
 import { MdbxInternalsView } from './components/MdbxInternalsView';
 import { ExportModal } from './components/ExportModal';
+import { EditRecordModal } from './components/EditRecordModal';
+import { SaveIsarModal } from './components/SaveIsarModal';
+import { RowMutation } from './core/mdbxModifier';
+import { IsarRecord } from './core/isarDecoder';
 
 interface FileSystemFileHandleLike {
   getFile: () => Promise<File>;
@@ -48,6 +52,9 @@ export function App() {
   const [watchedPath, setWatchedPath] = useState<string | null>(null);
   const [draggingOverApp, setDraggingOverApp] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showSaveIsarModal, setShowSaveIsarModal] = useState(false);
+  const [mutations, setMutations] = useState<RowMutation[]>([]);
+  const [editingRecord, setEditingRecord] = useState<{ collectionName: string; row: DecodedRow } | null>(null);
 
   const fileHandleRef = useRef<FileSystemFileHandleLike | null>(null);
   const lastModifiedRef = useRef<number>(0);
@@ -316,6 +323,8 @@ export function App() {
     setDb(null);
     setSelectedCollection('');
     setSelectedRow(null);
+    setMutations([]);
+    setEditingRecord(null);
     setError(null);
     setWatchedPath(null);
     setAutoWatch(false);
@@ -427,6 +436,106 @@ export function App() {
     const row = col.rowById.get(rowId) ?? null;
     setSelectedRow(row);
   };
+
+  const handleOpenEditRow = useCallback((collectionName: string, row: DecodedRow) => {
+    setEditingRecord({ collectionName, row });
+  }, []);
+
+  const handleApplyRowEdit = useCallback(
+    (modifiedFields: IsarRecord) => {
+      if (!editingRecord || !db) return;
+      const { collectionName, row } = editingRecord;
+
+      setMutations((prev) => {
+        const filtered = prev.filter(
+          (m) => !(m.collection === collectionName && m.id === row.id && m.action === 'edit')
+        );
+        return [
+          ...filtered,
+          {
+            collection: collectionName,
+            id: row.id,
+            action: 'edit',
+            fields: modifiedFields,
+          },
+        ];
+      });
+
+      // Update in-memory db view
+      const col = db.collectionMap.get(collectionName);
+      if (col) {
+        const updatedRow: DecodedRow = {
+          ...row,
+          fields: modifiedFields,
+        };
+        col.rowById.set(row.idLabel, updatedRow);
+        const idx = col.rows.findIndex((r) => r.idLabel === row.idLabel);
+        if (idx >= 0) {
+          col.rows[idx] = updatedRow;
+        }
+        if (selectedRow?.idLabel === row.idLabel) {
+          setSelectedRow(updatedRow);
+        }
+      }
+      setEditingRecord(null);
+    },
+    [editingRecord, db, selectedRow]
+  );
+
+  const handleDeleteRow = useCallback(
+    (collectionName: string, row: DecodedRow) => {
+      if (!db) return;
+
+      setMutations((prev) => {
+        const filtered = prev.filter((m) => !(m.collection === collectionName && m.id === row.id));
+        return [
+          ...filtered,
+          {
+            collection: collectionName,
+            id: row.id,
+            action: 'delete',
+          },
+        ];
+      });
+
+      const col = db.collectionMap.get(collectionName);
+      if (col) {
+        col.rows = col.rows.filter((r) => r.idLabel !== row.idLabel);
+        col.rowById.delete(row.idLabel);
+        db.totalRows = Math.max(0, db.totalRows - 1);
+        if (selectedRow?.idLabel === row.idLabel) {
+          setSelectedRow(null);
+        }
+      }
+    },
+    [db, selectedRow]
+  );
+
+  const handleDiscardChanges = useCallback(() => {
+    if (!db || !db.rawBuffer) return;
+    try {
+      const freshParsed = parseIsarFile(db.rawBuffer, db.fileName);
+      setDb(freshParsed);
+      setMutations([]);
+      setEditingRecord(null);
+      if (selectedRow) {
+        const refreshedCol = freshParsed.collectionMap.get(selectedCollection);
+        setSelectedRow(refreshedCol?.rowById.get(selectedRow.idLabel) ?? null);
+      }
+    } catch (err) {
+      console.error('Failed to discard changes:', err);
+    }
+  }, [db, selectedRow, selectedCollection]);
+
+  const modifiedRowIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of mutations) {
+      if (m.collection === selectedCollection && m.action === 'edit') {
+        set.add(m.id.toString());
+      }
+    }
+    return set;
+  }, [mutations, selectedCollection]);
 
   const currentCol = db?.collectionMap.get(selectedCollection) ?? null;
 
@@ -563,6 +672,9 @@ export function App() {
         onBackToLanding={handleBackToLanding}
         watchedPath={watchedPath}
         onOpenExportZip={() => setShowExportModal(true)}
+        pendingMutationsCount={mutations.length}
+        onOpenSaveIsar={() => setShowSaveIsarModal(true)}
+        onDiscardChanges={handleDiscardChanges}
       />
 
       <div className="flex-1 min-h-0 flex overflow-hidden">
@@ -588,6 +700,9 @@ export function App() {
               selectedRowId={selectedRow?.idLabel ?? null}
               onSelectRow={setSelectedRow}
               onOpenExportZip={() => setShowExportModal(true)}
+              onEditRow={(row) => handleOpenEditRow(currentCol.schema.name, row)}
+              onDeleteRow={(row) => handleDeleteRow(currentCol.schema.name, row)}
+              modifiedRowIds={modifiedRowIds}
             />
             {selectedRow && (
               <RowInspector
@@ -596,6 +711,8 @@ export function App() {
                 row={selectedRow}
                 onClose={() => setSelectedRow(null)}
                 onNavigateToRecord={handleNavigateToRecord}
+                onEditRow={handleOpenEditRow}
+                onDeleteRow={handleDeleteRow}
               />
             )}
           </>
@@ -621,6 +738,26 @@ export function App() {
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}
       />
+
+      <SaveIsarModal
+        isOpen={showSaveIsarModal}
+        onClose={() => setShowSaveIsarModal(false)}
+        db={db}
+        mutations={mutations}
+        watchedPath={watchedPath}
+        onClearMutations={() => setMutations([])}
+        onReloadDatabase={handleReload}
+      />
+
+      {editingRecord && currentCol && (
+        <EditRecordModal
+          isOpen={Boolean(editingRecord)}
+          collection={db.collectionMap.get(editingRecord.collectionName) || currentCol}
+          row={editingRecord.row}
+          onClose={() => setEditingRecord(null)}
+          onSave={handleApplyRowEdit}
+        />
+      )}
     </div>
   );
 }
