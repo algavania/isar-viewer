@@ -4,6 +4,9 @@ const DB_NAME = 'isar-viewer-cache';
 const STORE_NAME = 'active_session';
 const DB_VERSION = 1;
 
+/** Max buffer size (40 MB) to store in browser IndexedDB to prevent memory thrashing */
+export const MAX_CACHE_BUFFER_SIZE = 40 * 1024 * 1024;
+
 function openDb(): Promise<IDBDatabase | null> {
   if (typeof window === 'undefined' || typeof indexedDB === 'undefined') {
     return Promise.resolve(null);
@@ -43,13 +46,20 @@ export async function saveActiveSession(data: ActiveSessionData): Promise<void> 
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
 
-      store.put(data.buffer, 'buffer');
+      // Only store raw buffer in IndexedDB if within safety threshold
+      if (data.buffer.byteLength <= MAX_CACHE_BUFFER_SIZE) {
+        store.put(data.buffer, 'buffer');
+      } else {
+        store.delete('buffer');
+      }
+
       store.put(
         {
           fileName: data.fileName,
           selectedCollection: data.selectedCollection,
           activeView: data.activeView,
           lastModified: data.lastModified,
+          isOversized: data.buffer.byteLength > MAX_CACHE_BUFFER_SIZE,
         },
         'metadata'
       );
@@ -93,18 +103,24 @@ export async function restoreActiveSession(): Promise<ActiveSessionData | null> 
               selectedCollection?: string;
               activeView?: AppView;
               lastModified?: number;
+              isOversized?: boolean;
             }
           | undefined;
         const handle = handleReq.result;
 
-        if (!buffer || !meta) {
+        if (!meta) {
+          resolve(null);
+          return;
+        }
+
+        if (!buffer && !handle) {
           resolve(null);
           return;
         }
 
         resolve({
           fileName: meta.fileName,
-          buffer,
+          buffer: buffer || new ArrayBuffer(0),
           handle: handle || null,
           selectedCollection: meta.selectedCollection,
           activeView: meta.activeView,

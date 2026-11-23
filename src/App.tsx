@@ -197,43 +197,53 @@ export function App() {
         localStorage.setItem('isar-viewer-recent-paths', JSON.stringify(updated));
       } catch {}
 
-      // Setup Server-Sent Events (SSE) watcher for realtime updates
+      // Setup Server-Sent Events (SSE) watcher for realtime updates with debounce
       const sse = new EventSource(`/api/watch?path=${encodeURIComponent(resolvedPath)}`);
       sseRef.current = sse;
 
-      sse.addEventListener('change', async () => {
-        try {
-          const reloadRes = await fetch(`/api/file?path=${encodeURIComponent(resolvedPath)}`);
-          if (!reloadRes.ok) return;
-          const freshBuf = await reloadRes.arrayBuffer();
-          const freshParsed = parseIsarFile(freshBuf, fileName);
-          setDb(freshParsed);
+      let sseReloadTimer: ReturnType<typeof setTimeout> | null = null;
+      let isReloading = false;
 
-          setSelectedCollection((prevCol) => {
-            if (prevCol && freshParsed.collectionMap.has(prevCol)) return prevCol;
-            return freshParsed.collections[0]?.schema.name ?? '';
-          });
+      sse.addEventListener('change', () => {
+        if (sseReloadTimer) clearTimeout(sseReloadTimer);
+        sseReloadTimer = setTimeout(async () => {
+          if (isReloading) return;
+          isReloading = true;
+          try {
+            const reloadRes = await fetch(`/api/file?path=${encodeURIComponent(resolvedPath)}`);
+            if (!reloadRes.ok) return;
+            const freshBuf = await reloadRes.arrayBuffer();
+            const freshParsed = parseIsarFile(freshBuf, fileName);
+            setDb(freshParsed);
 
-          setSelectedRow((prevRow) => {
-            if (!prevRow) return null;
-            for (const col of freshParsed.collections) {
-              const found = col.rowById.get(prevRow.idLabel);
-              if (found) return found;
-            }
-            return null;
-          });
+            setSelectedCollection((prevCol) => {
+              if (prevCol && freshParsed.collectionMap.has(prevCol)) return prevCol;
+              return freshParsed.collections[0]?.schema.name ?? '';
+            });
 
-          // Update persisted session buffer
-          saveActiveSession({
-            fileName,
-            buffer: freshBuf,
-            handle: null,
-            selectedCollection: defaultCol,
-            activeView: 'data',
-          });
-        } catch (e) {
-          console.error('Failed to hot-reload database:', e);
-        }
+            setSelectedRow((prevRow) => {
+              if (!prevRow) return null;
+              for (const col of freshParsed.collections) {
+                const found = col.rowById.get(prevRow.idLabel);
+                if (found) return found;
+              }
+              return null;
+            });
+
+            // Update persisted session buffer
+            saveActiveSession({
+              fileName,
+              buffer: freshBuf,
+              handle: null,
+              selectedCollection: defaultCol,
+              activeView: 'data',
+            });
+          } catch (e) {
+            console.error('Failed to hot-reload database:', e);
+          } finally {
+            isReloading = false;
+          }
+        }, 250);
       });
 
       sse.onerror = () => {};
@@ -376,7 +386,10 @@ export function App() {
   // Live watch polling when File System Access handle is active (1s interval)
   useEffect(() => {
     if (!autoWatch || !fileHandleRef.current) return;
+    let isPolling = false;
     const timer = setInterval(async () => {
+      if (isPolling) return;
+      isPolling = true;
       try {
         const file = await fileHandleRef.current!.getFile();
         if (file.lastModified !== lastModifiedRef.current || file.size !== lastSizeRef.current) {
@@ -385,6 +398,8 @@ export function App() {
         }
       } catch {
         setAutoWatch(false);
+      } finally {
+        isPolling = false;
       }
     }, 1000);
     return () => clearInterval(timer);
