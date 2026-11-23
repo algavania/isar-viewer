@@ -1,16 +1,14 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Archive,
   Download,
   Check,
   Table,
-  CheckSquare,
-  Square,
   Search,
   Sliders,
   Loader2,
-  FileArchive,
+  CheckCircle2,
 } from 'lucide-react';
 import { IsarDatabaseModel } from '../core/isarDatabase';
 import { exportDatabaseToJsonZip, downloadBlob, ExportProgress } from '../core/exportDatabase';
@@ -24,7 +22,7 @@ interface ExportModalProps {
 
 export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose }) => {
   const defaultBaseName = db.fileName.replace(/\.isar$/i, '') || 'isar_database';
-  const [filename, setFilename] = useState(`${defaultBaseName}-export.zip`);
+  const [baseFilename, setBaseFilename] = useState(`${defaultBaseName}-export`);
   const [pretty, setPretty] = useState(() => db.totalRows < 5000);
   const [includeLinks, setIncludeLinks] = useState(true);
   const [includeSchema, setIncludeSchema] = useState(true);
@@ -39,10 +37,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
   const [progress, setProgress] = useState<ExportProgress | null>(null);
   const [successInfo, setSuccessInfo] = useState<{ size: number; filename: string } | null>(null);
 
-  // Reset when opened
-  React.useEffect(() => {
-    if (isOpen) {
-      setFilename(`${defaultBaseName}-export.zip`);
+  // Track previous isOpen so state only resets on fresh open transition, never while typing
+  const prevIsOpenRef = React.useRef(isOpen);
+
+  useEffect(() => {
+    if (isOpen && !prevIsOpenRef.current) {
+      setBaseFilename(`${defaultBaseName}-export`);
       setSelectedColNames(new Set(db.collections.map((c) => c.schema.name)));
       setPretty(db.totalRows < 5000);
       setIsExporting(false);
@@ -50,10 +50,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
       setSuccessInfo(null);
       setFilterSearch('');
     }
-  }, [isOpen, defaultBaseName, db.collections, db.totalRows]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, defaultBaseName, db]);
 
   // Handle ESC key
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !isExporting) {
@@ -97,28 +98,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
     setSelectedColNames(new Set());
   };
 
-  const handleInvertSelection = () => {
-    setSelectedColNames((prev) => {
-      const next = new Set<string>();
-      for (const c of db.collections) {
-        if (!prev.has(c.schema.name)) {
-          next.add(c.schema.name);
-        }
-      }
-      return next;
-    });
-  };
-
   const handleExport = async () => {
     if (selectedCount === 0 || isExporting) return;
     setIsExporting(true);
     setSuccessInfo(null);
 
+    const finalFilename = `${(baseFilename.trim() || defaultBaseName).replace(/\.zip$/i, '')}.zip`;
+
     try {
       const result = await exportDatabaseToJsonZip(
         db,
         {
-          filename,
+          filename: finalFilename,
           pretty,
           includeLinks,
           includeSchema,
@@ -142,21 +133,21 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs select-none">
       <div
-        className="w-full max-w-xl max-h-[90vh] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+        className="w-full max-w-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
+        {/* Modal Header */}
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
-              <Archive className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+              <Archive className="w-4 h-4" />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                Export Isar Models to JSON (.zip)
+                Export to JSON Archive (.zip)
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Choose which models to export as individual JSON files bundled into a single ZIP archive
+              <p className="text-[11px] font-mono tabular-nums text-slate-500 dark:text-slate-400">
+                {db.fileName} • {db.collections.length} collections • {db.totalRows.toLocaleString()} rows
               </p>
             </div>
           </div>
@@ -170,144 +161,86 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 text-xs">
-          {/* Summary Banner */}
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 min-w-0">
-              <FileArchive className="w-4 h-4 text-emerald-500 shrink-0" />
-              <span className="font-mono font-medium truncate max-w-[200px]" title={db.fileName}>
-                {db.fileName}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 dark:text-slate-400">
-              <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                {db.collections.length} collections
-              </span>
-              <span className="px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                {db.totalRows.toLocaleString()} rows
-              </span>
-            </div>
-          </div>
-
-          {/* Filename Input */}
+        {/* Modal Body */}
+        <div className="p-5 space-y-4 text-xs">
+          {/* File Name Field */}
           <div>
-            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1">
-              ZIP Archive File Name
+            <label className="block text-[11px] font-medium text-slate-600 dark:text-slate-300 mb-1.5">
+              Archive Name
             </label>
-            <div className="flex items-center">
+            <div className="flex items-center rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 overflow-hidden focus-within:border-emerald-500/60 focus-within:ring-1 focus-within:ring-emerald-500/20">
               <input
                 type="text"
-                value={filename}
-                onChange={(e) => setFilename(e.target.value)}
+                value={baseFilename}
+                onChange={(e) => setBaseFilename(e.target.value)}
                 disabled={isExporting}
-                placeholder="database-export.zip"
-                className="w-full px-3 py-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 font-mono text-xs focus:outline-none focus:border-emerald-500/60"
+                placeholder="database-export"
+                className="flex-1 px-3 py-1.5 bg-transparent font-mono text-xs focus:outline-none text-slate-800 dark:text-slate-200"
               />
+              <span className="px-2.5 py-1.5 bg-slate-200/60 dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 text-[11px] font-mono text-slate-500 dark:text-slate-400 select-none">
+                .zip
+              </span>
             </div>
           </div>
 
-          {/* Options */}
-          <div className="p-3 rounded-xl bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800/80 space-y-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5">
-              <Sliders className="w-3 h-3" />
-              <span>Export Options</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={pretty}
-                  onChange={(e) => setPretty(e.target.checked)}
-                  disabled={isExporting}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700 dark:bg-slate-900"
-                />
-                <span className="text-slate-700 dark:text-slate-300">
-                  Pretty-format JSON (2 spaces)
-                  {db.totalRows >= 5000 && (
-                    <span className="ml-1 text-[10px] text-amber-500 font-mono">(compact recommended)</span>
-                  )}
-                </span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={includeLinks}
-                  onChange={(e) => setIncludeLinks(e.target.checked)}
-                  disabled={isExporting}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700 dark:bg-slate-900"
-                />
-                <span className="text-slate-700 dark:text-slate-300">Include link relations (@link:*)</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={includeSchema}
-                  onChange={(e) => setIncludeSchema(e.target.checked)}
-                  disabled={isExporting}
-                  className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700 dark:bg-slate-900"
-                />
-                <span className="text-slate-700 dark:text-slate-300">
-                  Include <code className="font-mono text-emerald-600 dark:text-emerald-400">_schema.json</code>{' '}
-                  metadata
-                </span>
-              </label>
-            </div>
-          </div>
-
-          {/* Collections / Models Selection */}
+          {/* Collection Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                Models / Collections ({selectedCount} of {db.collections.length} selected,{' '}
-                {totalRowsSelected.toLocaleString()} rows)
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-slate-700 dark:text-slate-200 text-xs">
+                  Collections to Export
+                </span>
+                <span className="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                  {selectedCount} of {db.collections.length}
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleSelectAll}
                   disabled={isExporting}
-                  className="text-[11px] text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer disabled:opacity-50"
+                  className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer disabled:opacity-50"
                 >
                   Select All
                 </button>
-                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <span className="text-slate-300 dark:text-slate-700">•</span>
                 <button
                   type="button"
                   onClick={handleDeselectAll}
                   disabled={isExporting}
                   className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
                 >
-                  Deselect All
-                </button>
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-                <button
-                  type="button"
-                  onClick={handleInvertSelection}
-                  disabled={isExporting}
-                  className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
-                >
-                  Invert
+                  Clear
                 </button>
               </div>
             </div>
 
-            {db.collections.length > 6 && (
+            {/* Filter Search (shown if > 4 collections) */}
+            {db.collections.length > 4 && (
               <div className="relative">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={filterSearch}
                   onChange={(e) => setFilterSearch(e.target.value)}
-                  placeholder="Filter models / collections..."
-                  className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500/60"
+                  placeholder="Filter collections..."
+                  className="w-full pl-8 pr-7 py-1 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500/60 text-slate-800 dark:text-slate-200"
                 />
+                {filterSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterSearch('')}
+                    title="Clear filter"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             )}
 
-            <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 bg-slate-50/50 dark:bg-slate-950/30">
+            {/* Collection Items Checklist */}
+            <div className="max-h-52 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 divide-y divide-slate-100 dark:divide-slate-800/60 bg-slate-50/40 dark:bg-slate-950/40">
               {filteredCollections.map((col) => {
                 const isChecked = selectedColNames.has(col.schema.name);
                 return (
@@ -323,63 +256,96 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
                         toggleCollection(col.schema.name);
                       }
                     }}
-                    className="group px-3 py-2 flex items-center justify-between hover:bg-slate-100/70 dark:hover:bg-slate-900/60 cursor-pointer transition-colors focus:outline-none focus:bg-slate-100/80 dark:focus:bg-slate-900/80"
+                    className={`group px-3 py-2 flex items-center justify-between transition-colors cursor-pointer select-none ${
+                      isChecked
+                        ? 'bg-emerald-500/5 dark:bg-emerald-500/10 hover:bg-emerald-500/10'
+                        : 'hover:bg-slate-100/70 dark:hover:bg-slate-900/60'
+                    }`}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
-                      {isChecked ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-500 shrink-0" />
-                      ) : (
-                        <Square className="w-4 h-4 text-slate-400 shrink-0" />
-                      )}
+                      <div
+                        className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                          isChecked
+                            ? 'bg-emerald-600 border-emerald-600 text-white'
+                            : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900'
+                        }`}
+                      >
+                        {isChecked && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
                       <Table className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate font-mono">
+                      <span className="font-mono text-xs font-medium text-slate-800 dark:text-slate-200 truncate">
                         {col.schema.name}.json
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isExporting) {
-                            setSelectedColNames(new Set([col.schema.name]));
-                          }
-                        }}
-                        className="opacity-0 group-hover:opacity-100 text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline px-1 transition-opacity cursor-pointer disabled:opacity-0"
-                        title={`Select only ${col.schema.name}`}
-                        disabled={isExporting}
-                      >
-                        Only
-                      </button>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
-                        {col.rows.length.toLocaleString()} rows
-                      </span>
-                    </div>
+
+                    <span className="text-[10px] font-mono tabular-nums px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                      {col.rows.length.toLocaleString()} rows
+                    </span>
                   </div>
                 );
               })}
+
               {filteredCollections.length === 0 && (
-                <div className="p-4 text-center text-slate-400 italic">No models found</div>
+                <div className="p-4 text-center text-xs text-slate-400 italic">No matching collections found</div>
               )}
             </div>
           </div>
 
-          {/* Progress / Success Info */}
-          {progress && (
-            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-1.5">
+          {/* Options Strip */}
+          <div className="pt-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5 mb-2">
+              <Sliders className="w-3 h-3" />
+              <span>Formatting Options</span>
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-slate-700 dark:text-slate-300">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={pretty}
+                  onChange={(e) => setPretty(e.target.checked)}
+                  disabled={isExporting}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700"
+                />
+                <span>Pretty JSON</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeLinks}
+                  onChange={(e) => setIncludeLinks(e.target.checked)}
+                  disabled={isExporting}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700"
+                />
+                <span>Include Links</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeSchema}
+                  onChange={(e) => setIncludeSchema(e.target.checked)}
+                  disabled={isExporting}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700"
+                />
+                <span>Include Schema</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Export Progress Notification */}
+          {progress && isExporting && (
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 space-y-2">
               <div className="flex items-center justify-between text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
-                <span className="flex items-center gap-1.5">
-                  {isExporting ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <Check className="w-3 h-3 text-emerald-500" />
-                  )}
-                  {progress.phase === 'serializing' &&
-                    `Serializing ${progress.collectionName || ''} (${progress.processedCollections + 1}/${progress.totalCollections})...`}
-                  {progress.phase === 'compressing' && 'Compressing into ZIP archive...'}
-                  {progress.phase === 'done' && 'Export completed and downloaded!'}
+                <span className="flex items-center gap-2">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span>
+                    {progress.phase === 'serializing' && `Bundling ${progress.collectionName || ''}...`}
+                    {progress.phase === 'compressing' && 'Compressing into ZIP...'}
+                    {progress.phase === 'done' && 'Finalizing download...'}
+                  </span>
                 </span>
-                <span className="font-mono">{progress.percent}%</span>
+                <span className="font-mono tabular-nums">{progress.percent}%</span>
               </div>
               <div className="w-full h-1.5 bg-emerald-200/50 dark:bg-emerald-950 rounded-full overflow-hidden">
                 <div
@@ -390,27 +356,32 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
             </div>
           )}
 
+          {/* Export Success Notification */}
           {successInfo && !isExporting && (
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-emerald-500 shrink-0" />
-                <span>
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                <span className="text-xs">
                   Downloaded <strong>{successInfo.filename}</strong> ({formatBytes(successInfo.size)})
                 </span>
               </div>
-              <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/20">
-                Ready
-              </span>
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-[11px] cursor-pointer"
+              >
+                Done
+              </button>
             </div>
           )}
         </div>
 
-        {/* Footer */}
+        {/* Modal Footer */}
         <div className="px-5 py-3.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 flex items-center justify-between gap-3">
-          <div className="text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-mono tabular-nums">
             {selectedCount > 0
-              ? `${selectedCount} JSON files will be in ${filename}`
-              : 'Select at least 1 collection'}
+              ? `${totalRowsSelected.toLocaleString()} rows in ${selectedCount} files`
+              : 'No collection selected'}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -419,23 +390,23 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
               disabled={isExporting}
               className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors cursor-pointer text-xs disabled:opacity-50"
             >
-              Close
+              Cancel
             </button>
             <button
               type="button"
               onClick={handleExport}
               disabled={selectedCount === 0 || isExporting}
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm transition-colors cursor-pointer flex items-center gap-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-xs transition-colors cursor-pointer flex items-center gap-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isExporting ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Exporting ZIP...</span>
+                  <span>Exporting...</span>
                 </>
               ) : (
                 <>
                   <Download className="w-3.5 h-3.5" />
-                  <span>Export ZIP ({totalRowsSelected.toLocaleString()} rows)</span>
+                  <span>Download ZIP</span>
                 </>
               )}
             </button>

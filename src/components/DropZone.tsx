@@ -4,8 +4,8 @@ import {
   Upload,
   Sparkles,
   ShieldCheck,
-  Layers,
-  GitFork,
+  Cpu,
+  Code2,
   AlertCircle,
   Sun,
   Moon,
@@ -51,59 +51,68 @@ export const DropZone: React.FC<DropZoneProps> = ({
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
-      className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 relative overflow-hidden"
+      className="min-h-screen flex flex-col justify-between p-6 sm:p-10 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors"
     >
-      {/* Light / Dark Mode Toggle in Landing Page */}
-      <div className="absolute top-5 right-5 z-20 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onToggleTheme}
-          title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-          className="px-3 py-1.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 shadow-sm backdrop-blur-md flex items-center gap-2 text-xs font-medium transition-all cursor-pointer"
-        >
-          {dark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
-          <span>{dark ? 'Light Mode' : 'Dark Mode'}</span>
-        </button>
-      </div>
-
-      {/* Subtle ambient background glow */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[720px] h-[420px] rounded-full bg-emerald-500/10 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-40 right-1/4 w-[520px] h-[360px] rounded-full bg-cyan-500/10 blur-3xl" />
-
-      <div className="w-full max-w-2xl relative z-10">
-        <div className="flex items-center justify-center gap-3 mb-6">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
-            <Database className="w-6 h-6 text-white" />
+      {/* Top Header Navigation */}
+      <header className="w-full max-w-4xl mx-auto flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+            <Database className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Isar Viewer</h1>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-sm tracking-tight">Isar Viewer</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200/70 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-300/60 dark:border-slate-700/60">
+                v1.0 • MDBX
+              </span>
+            </div>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Standalone offline inspector for <code className="text-emerald-600 dark:text-emerald-400">.isar</code> databases
+              Offline Flutter database inspector
             </p>
           </div>
         </div>
 
-        {/* Drag & Drop Area */}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 shadow-xs flex items-center gap-1.5 text-xs font-medium transition-colors cursor-pointer"
+          >
+            {dark ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-slate-600" />}
+            <span>{dark ? 'Light' : 'Dark'}</span>
+          </button>
+        </div>
+      </header>
+
+      {/* Main Drop Area Content */}
+      <main className="w-full max-w-3xl mx-auto my-auto py-8">
         <div
           onClick={onOpenPicker}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => e.key === 'Enter' && onOpenPicker()}
-          className={`group cursor-pointer rounded-2xl border-2 border-dashed p-10 text-center transition-all duration-200 bg-white/80 dark:bg-slate-900/70 backdrop-blur-xl shadow-xl ${
+          className={`relative group cursor-pointer rounded-2xl border transition-all duration-200 p-8 sm:p-12 text-center bg-white dark:bg-slate-900/90 shadow-sm ${
             dragging
-              ? 'border-emerald-500 bg-emerald-500/5 scale-[1.01] shadow-emerald-500/15'
-              : 'border-slate-300 dark:border-slate-700/80 hover:border-emerald-500/70 hover:bg-white dark:hover:bg-slate-900'
+              ? 'border-emerald-500 ring-4 ring-emerald-500/10 bg-emerald-50/20 dark:bg-emerald-950/20'
+              : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-md'
           }`}
         >
-          <div className="mx-auto w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-center mb-4 group-hover:scale-105 group-hover:border-emerald-500/50 transition-transform">
-            <Upload className={`w-6 h-6 ${dragging ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-300'}`} />
+          {/* Subtle indicator badge */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-xs font-medium mb-6">
+            <Radio className="w-3 h-3 animate-pulse" />
+            <span>Pure Client-Side Parser</span>
           </div>
 
-          <h2 className="text-lg font-semibold mb-1.5">
-            {loading ? 'Parsing .isar database...' : 'Drop your .isar file here'}
+          <div className="mx-auto w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 flex items-center justify-center mb-5 group-hover:border-emerald-500/40 group-hover:text-emerald-500 transition-colors">
+            <Upload className={`w-6 h-6 transition-colors ${dragging ? 'text-emerald-500' : 'text-slate-500 dark:text-slate-400'}`} />
+          </div>
+
+          <h2 className="text-xl font-semibold tracking-tight mb-2">
+            {loading ? 'Reading & parsing .isar database...' : 'Drop your .isar file here'}
           </h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            Drop or click to open from your computer — automatically activates Live Watch mode!
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-8 leading-relaxed">
+            Drag any raw Flutter Isar Database file here, or browse from your disk to start exploring collections and records immediately.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3" onClick={(e) => e.stopPropagation()}>
@@ -111,63 +120,79 @@ export const DropZone: React.FC<DropZoneProps> = ({
               type="button"
               onClick={onOpenPicker}
               disabled={loading}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium shadow-md shadow-emerald-600/20 transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
             >
-              <Radio className="w-4 h-4 animate-pulse text-emerald-200" />
-              <span>Open .isar File (Live Watch)</span>
+              <Database className="w-3.5 h-3.5" />
+              <span>Select .isar File</span>
             </button>
             <button
               type="button"
               onClick={onLoadSample}
               disabled={loading}
-              className="px-4 py-2.5 rounded-xl bg-slate-200/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-sm font-medium flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700/80 text-xs font-semibold flex items-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
             >
-              <Sparkles className="w-4 h-4 text-amber-500" />
-              Load Sample Database
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Load Sample Database</span>
             </button>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-center gap-4 text-[11px] text-slate-400 dark:text-slate-500">
+            <span>Supports Isar v3 (libmdbx storage)</span>
+            <span>•</span>
+            <span>Zero server upload</span>
+            <span>•</span>
+            <span>Realtime hot reload</span>
           </div>
         </div>
 
         {error && (
-          <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-600 dark:text-rose-300 text-xs flex items-start gap-3">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+          <div className="mt-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-700 dark:text-rose-300 text-xs flex items-start gap-3">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
             <div>
-              <p className="font-semibold">Notice</p>
+              <p className="font-semibold">Unable to load database</p>
               <p className="text-xs opacity-90 mt-0.5 leading-relaxed">{error}</p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-6">
-          <div className="p-4 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
-            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">
-              <ShieldCheck className="w-4 h-4" />
-              100% Local & Safe
+        {/* Technical Architecture Strip */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 mt-6">
+          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100 mb-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-500" />
+              <span>Offline & Sandbox Safe</span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Parsed directly in your browser. Your database never leaves your machine.
+              Binary data is decoded 100% inside your browser environment. No telemetries, no server roundtrips.
             </p>
           </div>
-          <div className="p-4 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
-            <div className="flex items-center gap-2 text-xs font-semibold text-cyan-600 dark:text-cyan-400 mb-1">
-              <Layers className="w-4 h-4" />
-              Auto Schema Discovery
+
+          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100 mb-1.5">
+              <Cpu className="w-4 h-4 text-cyan-500" />
+              <span>Native MDBX Parser</span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Reads embedded <code className="text-[11px]">_info</code> schemas, tombstones, and binary records.
+              Inspects lower-level B-tree pages, schema metadata, and IsarObject binary layouts directly.
             </p>
           </div>
-          <div className="p-4 rounded-xl bg-white/60 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800/80">
-            <div className="flex items-center gap-2 text-xs font-semibold text-violet-600 dark:text-violet-400 mb-1">
-              <GitFork className="w-4 h-4" />
-              Realtime Live Watch
+
+          <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-slate-100 mb-1.5">
+              <Code2 className="w-4 h-4 text-emerald-500" />
+              <span>Reverse Engineering</span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              Hot-reloads grid and schemas automatically whenever Flutter writes changes to disk.
+              Auto-discovers collection structures, relations, and reverse-engineers production-ready Dart models.
             </p>
           </div>
         </div>
-      </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="w-full max-w-4xl mx-auto text-center text-xs text-slate-400 dark:text-slate-500 py-2">
+        <p>Built for Flutter developers & QA engineers • MIT License</p>
+      </footer>
     </div>
   );
 };

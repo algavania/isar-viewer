@@ -29,6 +29,7 @@ dist-ssr/
 .env.*.local
 
 # Editor & OS files
+.gemini/
 .vscode/*
 !.vscode/extensions.json
 .idea

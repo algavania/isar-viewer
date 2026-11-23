@@ -172,15 +172,15 @@ const DataTableRow = React.memo<DataTableRowProps>(({
       onClick={() => onSelectRow(row)}
       className={`group cursor-pointer transition-colors ${
         isSelected
-          ? 'bg-emerald-500/12 dark:bg-emerald-500/15'
+          ? 'bg-emerald-500/10 dark:bg-emerald-500/15'
           : 'hover:bg-slate-50 dark:hover:bg-slate-900/60'
       }`}
     >
-      <td className="px-3.5 py-2 font-mono text-xs font-medium text-emerald-700 dark:text-emerald-400 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50">
+      <td className="px-3.5 py-2 font-mono tabular-nums text-xs font-semibold text-emerald-700 dark:text-emerald-400 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50">
         <div className="flex items-center gap-1.5">
           <span>{row.idLabel}</span>
           {isModified && (
-            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
               edited
             </span>
           )}
@@ -798,15 +798,15 @@ export const DataTable: React.FC<DataTableProps> = ({
 
       {/* Pagination Bar */}
       <div className="px-4 py-2 border-t border-slate-200 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400 select-none">
-        <div className="flex items-center gap-2 font-mono">
+        <div className="flex items-center gap-2 font-mono tabular-nums">
           <span>
             Showing{' '}
             <strong className="text-slate-800 dark:text-slate-200">
               {filteredRows.length === 0 ? 0 : (safePage - 1) * pageSize + 1}–
               {Math.min(safePage * pageSize, filteredRows.length)}
             </strong>{' '}
-            of <strong className="text-slate-800 dark:text-slate-200">{filteredRows.length}</strong>
-            {filteredRows.length !== collection.rows.length && ` (filtered from ${collection.rows.length})`}
+            of <strong className="text-slate-800 dark:text-slate-200">{filteredRows.length.toLocaleString()}</strong>
+            {filteredRows.length !== collection.rows.length && ` (filtered from ${collection.rows.length.toLocaleString()})`}
           </span>
         </div>
 

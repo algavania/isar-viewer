@@ -59,21 +59,21 @@ export const MdbxInternalsView: React.FC<MdbxInternalsViewProps> = ({ db }) => {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             <div className="text-[11px] text-slate-400 uppercase font-semibold">File Size</div>
-            <div className="text-lg font-mono font-bold mt-1">{formatBytes(mdbx.fileSize)}</div>
+            <div className="text-lg font-mono tabular-nums font-bold mt-1">{formatBytes(mdbx.fileSize)}</div>
           </div>
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             <div className="text-[11px] text-slate-400 uppercase font-semibold">Page Size</div>
-            <div className="text-lg font-mono font-bold mt-1">{mdbx.pagesize.toLocaleString()} B</div>
+            <div className="text-lg font-mono tabular-nums font-bold mt-1">{mdbx.pagesize.toLocaleString()} B</div>
           </div>
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             <div className="text-[11px] text-slate-400 uppercase font-semibold">Active Txn ID</div>
-            <div className="text-lg font-mono font-bold mt-1 text-emerald-500">
+            <div className="text-lg font-mono tabular-nums font-bold mt-1 text-emerald-600 dark:text-emerald-400">
               #{mdbx.activeMeta.txnid.toString()}
             </div>
           </div>
           <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             <div className="text-[11px] text-slate-400 uppercase font-semibold">Sub-Databases</div>
-            <div className="text-lg font-mono font-bold mt-1">{subDbList.length}</div>
+            <div className="text-lg font-mono tabular-nums font-bold mt-1">{subDbList.length}</div>
           </div>
         </div>
 

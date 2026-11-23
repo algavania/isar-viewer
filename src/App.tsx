@@ -748,21 +748,25 @@ export function App() {
         {activeView === 'internals' && <MdbxInternalsView db={db} />}
       </div>
 
-      <ExportModal
-        db={db}
-        isOpen={showExportModal}
-        onClose={() => setShowExportModal(false)}
-      />
+      {showExportModal && (
+        <ExportModal
+          db={db}
+          isOpen={showExportModal}
+          onClose={() => setShowExportModal(false)}
+        />
+      )}
 
-      <SaveIsarModal
-        isOpen={showSaveIsarModal}
-        onClose={() => setShowSaveIsarModal(false)}
-        db={db}
-        mutations={mutations}
-        watchedPath={watchedPath}
-        onClearMutations={() => setMutations([])}
-        onReloadDatabase={handleReload}
-      />
+      {showSaveIsarModal && (
+        <SaveIsarModal
+          isOpen={showSaveIsarModal}
+          onClose={() => setShowSaveIsarModal(false)}
+          db={db}
+          mutations={mutations}
+          watchedPath={watchedPath}
+          onClearMutations={() => setMutations([])}
+          onReloadDatabase={handleReload}
+        />
+      )}
 
       {editingRecord && currentCol && (
         <EditRecordModal

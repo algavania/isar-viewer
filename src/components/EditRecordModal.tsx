@@ -21,11 +21,16 @@ export const EditRecordModal: React.FC<EditRecordModalProps> = ({
   const [fields, setFields] = useState<IsarRecord>({});
   const [jsonErrors, setJsonErrors] = useState<Record<string, string>>({});
 
+  const prevRowIdRef = React.useRef<string | null>(null);
+
   useEffect(() => {
-    if (isOpen && row) {
+    if (isOpen && row && prevRowIdRef.current !== row.idLabel) {
+      prevRowIdRef.current = row.idLabel;
       // Clone row fields
       setFields(JSON.parse(JSON.stringify(row.fields)));
       setJsonErrors({});
+    } else if (!isOpen) {
+      prevRowIdRef.current = null;
     }
   }, [isOpen, row]);
 
