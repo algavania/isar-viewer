@@ -97,6 +97,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
     setSelectedColNames(new Set());
   };
 
+  const handleInvertSelection = () => {
+    setSelectedColNames((prev) => {
+      const next = new Set<string>();
+      for (const c of db.collections) {
+        if (!prev.has(c.schema.name)) {
+          next.add(c.schema.name);
+        }
+      }
+      return next;
+    });
+  };
+
   const handleExport = async () => {
     if (selectedCount === 0 || isExporting) return;
     setIsExporting(true);
@@ -141,10 +153,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-900 dark:text-white">
-                Convert Isar to JSON (.zip)
+                Export Isar Models to JSON (.zip)
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Export all collections as individual JSON files bundled into a single ZIP
+                Choose which models to export as individual JSON files bundled into a single ZIP archive
               </p>
             </div>
           </div>
@@ -245,11 +257,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
             </div>
           </div>
 
-          {/* Collections Selection */}
+          {/* Collections / Models Selection */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-medium text-slate-700 dark:text-slate-300">
-                Collections ({selectedCount} of {db.collections.length} selected,{' '}
+                Models / Collections ({selectedCount} of {db.collections.length} selected,{' '}
                 {totalRowsSelected.toLocaleString()} rows)
               </span>
               <div className="flex items-center gap-2">
@@ -270,6 +282,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
                 >
                   Deselect All
                 </button>
+                <span className="text-slate-300 dark:text-slate-700">|</span>
+                <button
+                  type="button"
+                  onClick={handleInvertSelection}
+                  disabled={isExporting}
+                  className="text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer disabled:opacity-50"
+                >
+                  Invert
+                </button>
               </div>
             </div>
 
@@ -280,7 +301,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
                   type="text"
                   value={filterSearch}
                   onChange={(e) => setFilterSearch(e.target.value)}
-                  placeholder="Filter collections..."
+                  placeholder="Filter models / collections..."
                   className="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500/60"
                 />
               </div>
@@ -292,8 +313,17 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
                 return (
                   <div
                     key={col.schema.name}
+                    role="checkbox"
+                    aria-checked={isChecked}
+                    tabIndex={0}
                     onClick={() => !isExporting && toggleCollection(col.schema.name)}
-                    className="px-3 py-2 flex items-center justify-between hover:bg-slate-100/70 dark:hover:bg-slate-900/60 cursor-pointer transition-colors"
+                    onKeyDown={(e) => {
+                      if ((e.key === ' ' || e.key === 'Enter') && !isExporting) {
+                        e.preventDefault();
+                        toggleCollection(col.schema.name);
+                      }
+                    }}
+                    className="group px-3 py-2 flex items-center justify-between hover:bg-slate-100/70 dark:hover:bg-slate-900/60 cursor-pointer transition-colors focus:outline-none focus:bg-slate-100/80 dark:focus:bg-slate-900/80"
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       {isChecked ? (
@@ -306,14 +336,30 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
                         {col.schema.name}.json
                       </span>
                     </div>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 shrink-0">
-                      {col.rows.length.toLocaleString()} rows
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!isExporting) {
+                            setSelectedColNames(new Set([col.schema.name]));
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-[10px] text-emerald-600 dark:text-emerald-400 hover:underline px-1 transition-opacity cursor-pointer disabled:opacity-0"
+                        title={`Select only ${col.schema.name}`}
+                        disabled={isExporting}
+                      >
+                        Only
+                      </button>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400">
+                        {col.rows.length.toLocaleString()} rows
+                      </span>
+                    </div>
                   </div>
                 );
               })}
               {filteredCollections.length === 0 && (
-                <div className="p-4 text-center text-slate-400 italic">No collections found</div>
+                <div className="p-4 text-center text-slate-400 italic">No models found</div>
               )}
             </div>
           </div>

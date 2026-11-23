@@ -661,7 +661,7 @@ export const DataTable: React.FC<DataTableProps> = ({
                       className="w-full px-3 py-1.5 rounded-lg text-left text-xs hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium"
                     >
                       <Archive className="w-3.5 h-3.5" />
-                      <span>Export All as ZIP...</span>
+                      <span>Export Models to JSON (.zip)...</span>
                     </button>
                   </>
                 )}
