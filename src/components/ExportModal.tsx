@@ -25,7 +25,7 @@ interface ExportModalProps {
 export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose }) => {
   const defaultBaseName = db.fileName.replace(/\.isar$/i, '') || 'isar_database';
   const [filename, setFilename] = useState(`${defaultBaseName}-export.zip`);
-  const [pretty, setPretty] = useState(true);
+  const [pretty, setPretty] = useState(() => db.totalRows < 5000);
   const [includeLinks, setIncludeLinks] = useState(true);
   const [includeSchema, setIncludeSchema] = useState(true);
 
@@ -44,12 +44,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
     if (isOpen) {
       setFilename(`${defaultBaseName}-export.zip`);
       setSelectedColNames(new Set(db.collections.map((c) => c.schema.name)));
+      setPretty(db.totalRows < 5000);
       setIsExporting(false);
       setProgress(null);
       setSuccessInfo(null);
       setFilterSearch('');
     }
-  }, [isOpen, defaultBaseName, db.collections]);
+  }, [isOpen, defaultBaseName, db.collections, db.totalRows]);
 
   // Handle ESC key
   React.useEffect(() => {
@@ -209,7 +210,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({ db, isOpen, onClose })
                   disabled={isExporting}
                   className="rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-slate-700 dark:bg-slate-900"
                 />
-                <span className="text-slate-700 dark:text-slate-300">Pretty-format JSON (2 spaces)</span>
+                <span className="text-slate-700 dark:text-slate-300">
+                  Pretty-format JSON (2 spaces)
+                  {db.totalRows >= 5000 && (
+                    <span className="ml-1 text-[10px] text-amber-500 font-mono">(compact recommended)</span>
+                  )}
+                </span>
               </label>
 
               <label className="flex items-center gap-2 cursor-pointer">

@@ -21,6 +21,39 @@ export interface DecodedRow {
   rawBytes: Uint8Array;
 }
 
+/**
+ * Creates a lazily-decoded row. The binary object fields are only decoded
+ * when `row.fields` is first accessed, drastically reducing load time and
+ * memory footprint for large databases.
+ */
+export function createDecodedRow(
+  id: bigint,
+  idStr: string,
+  rawBytes: Uint8Array,
+  links: Record<string, bigint[]>,
+  schemaName: string,
+  layoutsBySchema: Map<string, PropertyLayout[]>,
+  initialFields?: IsarRecord
+): DecodedRow {
+  let cachedFields: IsarRecord | null = initialFields ?? null;
+
+  return {
+    id,
+    idLabel: idStr,
+    get fields(): IsarRecord {
+      if (!cachedFields) {
+        cachedFields = decodeIsarObject(rawBytes, schemaName, layoutsBySchema);
+      }
+      return cachedFields;
+    },
+    set fields(val: IsarRecord) {
+      cachedFields = val;
+    },
+    links,
+    rawBytes,
+  };
+}
+
 export interface CollectionData {
   schema: IsarCollectionSchema;
   rows: DecodedRow[];
@@ -141,18 +174,18 @@ export function parseIsarFile(buffer: ArrayBuffer, fileName: string): IsarDataba
       for (const entry of colDb.entries) {
         const id = decodeIsarId(entry.key);
         const idStr = id.toString();
-        const fields = decodeIsarObject(entry.value, schema.name, layoutsBySchema);
         const links: Record<string, bigint[]> = {};
         for (const link of schema.links) {
           links[link.name] = linkMaps[link.name]?.get(idStr) ?? [];
         }
-        const row: DecodedRow = {
+        const row = createDecodedRow(
           id,
-          idLabel: idStr,
-          fields,
+          idStr,
+          entry.value,
           links,
-          rawBytes: entry.value,
-        };
+          schema.name,
+          layoutsBySchema
+        );
         rows.push(row);
         rowById.set(idStr, row);
       }
