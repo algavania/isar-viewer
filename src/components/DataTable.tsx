@@ -79,7 +79,20 @@ export const DataTable: React.FC<DataTableProps> = ({
     [collection]
   );
 
+  const [searchInput, setSearchInput] = useState('');
   const [globalSearch, setGlobalSearch] = useState('');
+
+  useEffect(() => {
+    if (!searchInput) {
+      setGlobalSearch('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      setGlobalSearch(searchInput);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
   const [filters, setFilters] = useState<ColumnFilter[]>([]);
   const [sort, setSort] = useState<SortConfig | null>({ field: '__id__', direction: 'asc' });
   const [page, setPage] = useState(1);
@@ -106,6 +119,7 @@ export const DataTable: React.FC<DataTableProps> = ({
     // Only reset search, filters, and pagination when switching to a DIFFERENT collection
     if (prevColNameRef.current !== collection.schema.name) {
       prevColNameRef.current = collection.schema.name;
+      setSearchInput('');
       setGlobalSearch('');
       setFilters([]);
       setSort({ field: '__id__', direction: 'asc' });
@@ -280,24 +294,25 @@ export const DataTable: React.FC<DataTableProps> = ({
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               onPaste={(e) => {
                 const text = e.clipboardData.getData('text');
                 if (text && (text.includes('\n') || text.includes('\r'))) {
                   e.preventDefault();
                   const cleaned = text.replace(/[\r\n]+/g, ' ').trim();
-                  setGlobalSearch(cleaned);
+                  setSearchInput(cleaned);
                 }
               }}
               placeholder={`Search ${collection.schema.name} (${collection.rows.length} rows)...`}
               className="w-full pl-8 pr-7 py-1.5 text-xs rounded-lg bg-slate-100/80 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-emerald-500/60 placeholder:text-slate-400"
             />
-            {globalSearch && (
+            {searchInput && (
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
+                  setSearchInput('');
                   setGlobalSearch('');
                 }}
                 onMouseDown={(e) => e.stopPropagation()}

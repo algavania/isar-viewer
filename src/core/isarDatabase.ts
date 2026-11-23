@@ -248,56 +248,76 @@ function compareValues(a: IsarValue, b: IsarValue): number {
   if (typeof a === 'boolean' && typeof b === 'boolean') return Number(a) - Number(b);
   if (Array.isArray(a) && Array.isArray(b)) return a.length - b.length;
   if (a instanceof Uint8Array && b instanceof Uint8Array) return a.length - b.length;
-  return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+  const sa = String(a);
+  const sb = String(b);
+  return sa < sb ? -1 : sa > sb ? 1 : 0;
 }
 
-function matchesFilter(row: DecodedRow, filter: ColumnFilter): boolean {
-  const val = getRowFieldValue(row, filter.field);
-  if (filter.operator === 'is_null') return val === null || val === undefined;
-  if (filter.operator === 'not_null') return val !== null && val !== undefined;
+interface PreparedFilter {
+  field: string;
+  operator: FilterOperator;
+  trimmedValue: string;
+  lowerValue: string;
+  numValue: number | null;
+}
+
+function prepareFilter(filter: ColumnFilter): PreparedFilter {
+  const trimmed = filter.value.trim();
+  const num = Number(trimmed);
+  return {
+    field: filter.field,
+    operator: filter.operator,
+    trimmedValue: trimmed,
+    lowerValue: trimmed.toLowerCase(),
+    numValue: Number.isNaN(num) ? null : num,
+  };
+}
+
+function matchesPreparedFilter(row: DecodedRow, pf: PreparedFilter): boolean {
+  const val = getRowFieldValue(row, pf.field);
+  if (pf.operator === 'is_null') return val === null || val === undefined;
+  if (pf.operator === 'not_null') return val !== null && val !== undefined;
 
   if (val === null || val === undefined) return false;
-  const query = filter.value.trim();
 
-  if (filter.operator === 'contains') {
-    return valueToSearchText(val).toLowerCase().includes(query.toLowerCase());
+  if (pf.operator === 'contains') {
+    return valueToSearchText(val).toLowerCase().includes(pf.lowerValue);
   }
 
   if (typeof val === 'number' || typeof val === 'bigint') {
-    const numQ = Number(query);
-    if (Number.isNaN(numQ)) return false;
+    if (pf.numValue === null) return false;
     const numVal = typeof val === 'bigint' ? Number(val) : val;
-    switch (filter.operator) {
+    switch (pf.operator) {
       case 'equals':
-        return typeof val === 'bigint' ? val.toString() === query : val === numQ;
+        return typeof val === 'bigint' ? val.toString() === pf.trimmedValue : val === pf.numValue;
       case 'not_equals':
-        return typeof val === 'bigint' ? val.toString() !== query : val !== numQ;
+        return typeof val === 'bigint' ? val.toString() !== pf.trimmedValue : val !== pf.numValue;
       case 'gt':
-        return numVal > numQ;
+        return numVal > pf.numValue;
       case 'gte':
-        return numVal >= numQ;
+        return numVal >= pf.numValue;
       case 'lt':
-        return numVal < numQ;
+        return numVal < pf.numValue;
       case 'lte':
-        return numVal <= numQ;
+        return numVal <= pf.numValue;
     }
   }
 
   const strVal = valueToSearchText(val);
-  const cmp = strVal.localeCompare(query, undefined, { sensitivity: 'base' });
-  switch (filter.operator) {
+  const strValLower = strVal.toLowerCase();
+  switch (pf.operator) {
     case 'equals':
-      return strVal.toLowerCase() === query.toLowerCase();
+      return strValLower === pf.lowerValue;
     case 'not_equals':
-      return strVal.toLowerCase() !== query.toLowerCase();
+      return strValLower !== pf.lowerValue;
     case 'gt':
-      return cmp > 0;
+      return strValLower > pf.lowerValue;
     case 'gte':
-      return cmp >= 0;
+      return strValLower >= pf.lowerValue;
     case 'lt':
-      return cmp < 0;
+      return strValLower < pf.lowerValue;
     case 'lte':
-      return cmp <= 0;
+      return strValLower <= pf.lowerValue;
     default:
       return false;
   }
@@ -310,23 +330,52 @@ export function queryRows(
   sort: SortConfig | null
 ): DecodedRow[] {
   const searchLower = globalSearch.trim().toLowerCase();
+  const preparedFilters = filters.map(prepareFilter);
 
-  let result = rows.filter((row) => {
-    for (const f of filters) {
-      if (!matchesFilter(row, f)) return false;
-    }
-    if (!searchLower) return true;
-    if (row.idLabel.toLowerCase().includes(searchLower)) return true;
-    for (const v of Object.values(row.fields)) {
-      if (valueToSearchText(v).toLowerCase().includes(searchLower)) return true;
-    }
-    for (const ids of Object.values(row.links)) {
-      if (ids.some((id) => id.toString().includes(searchLower))) return true;
-    }
-    return false;
-  });
+  const hasSearch = searchLower.length > 0;
+  const hasFilters = preparedFilters.length > 0;
+
+  let result: DecodedRow[];
+
+  if (!hasSearch && !hasFilters) {
+    result = rows;
+  } else {
+    result = rows.filter((row) => {
+      for (let i = 0; i < preparedFilters.length; i++) {
+        if (!matchesPreparedFilter(row, preparedFilters[i])) return false;
+      }
+      if (!hasSearch) return true;
+      if (row.idLabel.toLowerCase().includes(searchLower)) return true;
+
+      const fields = row.fields;
+      for (const k in fields) {
+        const v = fields[k];
+        if (v !== null && v !== undefined && valueToSearchText(v).toLowerCase().includes(searchLower)) {
+          return true;
+        }
+      }
+      for (const linkName in row.links) {
+        const ids = row.links[linkName];
+        if (ids) {
+          for (let j = 0; j < ids.length; j++) {
+            if (ids[j].toString().includes(searchLower)) return true;
+          }
+        }
+      }
+      return false;
+    });
+  }
 
   if (sort && sort.direction) {
+    if (sort.field === '__id__') {
+      if (sort.direction === 'asc') {
+        return result;
+      }
+      if (sort.direction === 'desc') {
+        return result.slice().reverse();
+      }
+    }
+
     const dir = sort.direction === 'asc' ? 1 : -1;
     result = [...result].sort((a, b) => {
       const va = getRowFieldValue(a, sort.field);
