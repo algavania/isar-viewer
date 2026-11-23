@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Table, Box, Search, Link2, KeyRound, Archive } from 'lucide-react';
 import { IsarDatabaseModel } from '../core/isarDatabase';
 
@@ -19,12 +19,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const [filter, setFilter] = useState('');
 
-  const filteredCols = db.collections.filter((c) =>
-    c.schema.name.toLowerCase().includes(filter.trim().toLowerCase())
-  );
-  const filteredEmb = db.embeddedSchemas.filter((s) =>
-    s.name.toLowerCase().includes(filter.trim().toLowerCase())
-  );
+  const filteredCols = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return db.collections;
+    return db.collections.filter((c) => c.schema.name.toLowerCase().includes(q));
+  }, [db.collections, filter]);
+
+  const filteredEmb = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return db.embeddedSchemas;
+    return db.embeddedSchemas.filter((s) => s.name.toLowerCase().includes(q));
+  }, [db.embeddedSchemas, filter]);
 
   return (
     <aside className="w-64 shrink-0 border-r border-slate-200 dark:border-slate-800/90 bg-slate-50/70 dark:bg-slate-950/60 flex flex-col select-none">

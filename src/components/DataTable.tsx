@@ -65,6 +65,192 @@ function downloadText(content: string, filename: string, mime: string) {
   URL.revokeObjectURL(url);
 }
 
+function renderCellValue(
+  val: IsarValue,
+  prop: IsarPropertySchema & { name: string },
+  isDateCol: boolean
+) {
+  if (val === null || val === undefined) {
+    return <span className="text-slate-400 dark:text-slate-600 italic font-mono text-[11px]">null</span>;
+  }
+
+  if (prop.type === 'Bool') {
+    return (
+      <span
+        className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-medium ${
+          val
+            ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25'
+            : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25'
+        }`}
+      >
+        {String(val)}
+      </span>
+    );
+  }
+
+  if (val instanceof Uint8Array) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/25 font-mono text-[11px]">
+        Bytes ({val.length} B)
+      </span>
+    );
+  }
+
+  if ((prop.type === 'Long' || prop.type === 'DateTime') && isDateCol && (typeof val === 'number' || typeof val === 'bigint')) {
+    return (
+      <span className="font-mono text-xs text-cyan-700 dark:text-cyan-300" title={`Raw: ${val.toString()}`}>
+        {formatMicrosToDate(val)}
+      </span>
+    );
+  }
+
+  if (typeof val === 'number' || typeof val === 'bigint') {
+    return <span className="font-mono text-xs text-sky-700 dark:text-sky-300">{val.toString()}</span>;
+  }
+
+  if (Array.isArray(val)) {
+    const preview = val
+      .slice(0, 3)
+      .map((item) => (item === null ? 'null' : typeof item === 'object' ? '{…}' : String(item)))
+      .join(', ');
+    return (
+      <span className="inline-flex items-center gap-1.5 max-w-[260px] truncate">
+        <span className="px-1.5 py-0.5 rounded bg-violet-500/12 text-violet-700 dark:text-violet-300 border border-violet-500/20 font-mono text-[10px] shrink-0">
+          [{val.length}]
+        </span>
+        <span className="text-xs text-slate-600 dark:text-slate-300 truncate">{preview || 'empty'}</span>
+      </span>
+    );
+  }
+
+  if (typeof val === 'object') {
+    const entries = Object.entries(val).slice(0, 3);
+    const summary = entries.map(([k, v]) => `${k}: ${v === null ? 'null' : String(v)}`).join(', ');
+    return (
+      <span className="inline-flex items-center gap-1 max-w-[260px] truncate px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 font-mono text-[11px] text-slate-700 dark:text-slate-300">
+        {`{ ${summary} }`}
+      </span>
+    );
+  }
+
+  return (
+    <span className="text-xs text-slate-800 dark:text-slate-200 block max-w-[280px] truncate" title={String(val)}>
+      {String(val) === '' ? <span className="text-slate-400 italic">"" (empty)</span> : String(val)}
+    </span>
+  );
+}
+
+interface DataTableRowProps {
+  row: DecodedRow;
+  isSelected: boolean;
+  activeProps: (IsarPropertySchema & { name: string })[];
+  hiddenCols: Set<string>;
+  dateCols: Set<string>;
+  links: { name: string; target: string }[];
+  isModified: boolean;
+  onSelectRow: (row: DecodedRow) => void;
+  onEditRow?: (row: DecodedRow) => void;
+  onDeleteRow?: (row: DecodedRow) => void;
+  collectionName: string;
+}
+
+const DataTableRow = React.memo<DataTableRowProps>(({
+  row,
+  isSelected,
+  activeProps,
+  hiddenCols,
+  dateCols,
+  links,
+  isModified,
+  onSelectRow,
+  onEditRow,
+  onDeleteRow,
+  collectionName,
+}) => {
+  return (
+    <tr
+      onClick={() => onSelectRow(row)}
+      className={`group cursor-pointer transition-colors ${
+        isSelected
+          ? 'bg-emerald-500/12 dark:bg-emerald-500/15'
+          : 'hover:bg-slate-50 dark:hover:bg-slate-900/60'
+      }`}
+    >
+      <td className="px-3.5 py-2 font-mono text-xs font-medium text-emerald-700 dark:text-emerald-400 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50">
+        <div className="flex items-center gap-1.5">
+          <span>{row.idLabel}</span>
+          {isModified && (
+            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+              edited
+            </span>
+          )}
+        </div>
+      </td>
+
+      {activeProps
+        .filter((p) => !hiddenCols.has(p.name))
+        .map((prop) => (
+          <td
+            key={prop.name}
+            className="px-3.5 py-2 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50"
+          >
+            {renderCellValue(row.fields[prop.name], prop, dateCols.has(prop.name))}
+          </td>
+        ))}
+
+      {links.map((link) => {
+        const targets = row.links[link.name] ?? [];
+        return (
+          <td
+            key={`link:${link.name}`}
+            className="px-3.5 py-2 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50"
+          >
+            {targets.length === 0 ? (
+              <span className="text-[11px] font-mono text-slate-400 dark:text-slate-600">0</span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/12 text-cyan-700 dark:text-cyan-300 border border-cyan-500/25 font-mono text-[11px]">
+                <Link2 className="w-2.5 h-2.5" />
+                {targets.length === 1
+                  ? `#${targets[0].toString()}`
+                  : `${targets.length} ${link.target}`}
+              </span>
+            )}
+          </td>
+        );
+      })}
+
+      <td className="px-3 py-1.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 hover:opacity-100 transition-opacity">
+          {onEditRow && (
+            <button
+              type="button"
+              onClick={() => onEditRow(row)}
+              title="Edit this record"
+              className="p-1 rounded-md text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onDeleteRow && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Delete record #${row.idLabel} from ${collectionName}?`)) {
+                  onDeleteRow(row);
+                }
+              }}
+              title="Delete this record"
+              className="p-1 rounded-md text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+});
+
 export const DataTable: React.FC<DataTableProps> = ({
   collection,
   selectedRowId,
@@ -100,34 +286,9 @@ export const DataTable: React.FC<DataTableProps> = ({
 
   // Column visibility and timestamp toggles
   const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
-  const [dateCols, setDateCols] = useState<Set<string>>(new Set());
 
-  // Popovers
-  const [showFilterBuilder, setShowFilterBuilder] = useState(false);
-  const [showColMenu, setShowColMenu] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-
-  // Filter draft
-  const [draftField, setDraftField] = useState<string>('__id__');
-  const [draftOp, setDraftOp] = useState<FilterOperator>('contains');
-  const [draftVal, setDraftVal] = useState<string>('');
-
-  const prevColNameRef = React.useRef<string>(collection.schema.name);
-
-  // Auto-detect likely microsecond DateTime Long columns on collection switch
-  useEffect(() => {
-    // Only reset search, filters, and pagination when switching to a DIFFERENT collection
-    if (prevColNameRef.current !== collection.schema.name) {
-      prevColNameRef.current = collection.schema.name;
-      setSearchInput('');
-      setGlobalSearch('');
-      setFilters([]);
-      setSort({ field: '__id__', direction: 'asc' });
-      setPage(1);
-      setHiddenCols(new Set());
-      setDraftField('__id__');
-    }
-
+  // Auto-detect likely microsecond DateTime Long columns synchronously per collection
+  const detectedDateCols = useMemo(() => {
     const autoDates = new Set<string>();
     const sampleRows = collection.rows.slice(0, 15);
     for (const prop of activeProps) {
@@ -143,7 +304,45 @@ export const DataTable: React.FC<DataTableProps> = ({
         }
       }
     }
-    setDateCols(autoDates);
+    return autoDates;
+  }, [collection.schema.name, activeProps]);
+
+  const [dateOverrides, setDateOverrides] = useState<Set<string>>(new Set());
+
+  const dateCols = useMemo(() => {
+    const combined = new Set(detectedDateCols);
+    for (const col of dateOverrides) {
+      if (combined.has(col)) combined.delete(col);
+      else combined.add(col);
+    }
+    return combined;
+  }, [detectedDateCols, dateOverrides]);
+
+  // Popovers
+  const [showFilterBuilder, setShowFilterBuilder] = useState(false);
+  const [showColMenu, setShowColMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Filter draft
+  const [draftField, setDraftField] = useState<string>('__id__');
+  const [draftOp, setDraftOp] = useState<FilterOperator>('contains');
+  const [draftVal, setDraftVal] = useState<string>('');
+
+  const prevColNameRef = React.useRef<string>(collection.schema.name);
+
+  // Reset state on collection switch
+  useEffect(() => {
+    if (prevColNameRef.current !== collection.schema.name) {
+      prevColNameRef.current = collection.schema.name;
+      setSearchInput('');
+      setGlobalSearch('');
+      setFilters([]);
+      setSort({ field: '__id__', direction: 'asc' });
+      setPage(1);
+      setHiddenCols(new Set());
+      setDraftField('__id__');
+      setDateOverrides(new Set());
+    }
   }, [collection.schema.name]);
 
   const filteredRows = useMemo(
@@ -195,7 +394,7 @@ export const DataTable: React.FC<DataTableProps> = ({
   };
 
   const toggleDateCol = (colName: string) => {
-    setDateCols((prev) => {
+    setDateOverrides((prev) => {
       const next = new Set(prev);
       if (next.has(colName)) next.delete(colName);
       else next.add(colName);
@@ -211,77 +410,6 @@ export const DataTable: React.FC<DataTableProps> = ({
       <ArrowUp className="w-3 h-3 text-emerald-500" />
     ) : (
       <ArrowDown className="w-3 h-3 text-emerald-500" />
-    );
-  };
-
-  const renderCellValue = (val: IsarValue, prop: IsarPropertySchema & { name: string }) => {
-    if (val === null || val === undefined) {
-      return <span className="text-slate-400 dark:text-slate-600 italic font-mono text-[11px]">null</span>;
-    }
-
-    if (prop.type === 'Bool') {
-      return (
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-medium ${
-            val
-              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25'
-              : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/25'
-          }`}
-        >
-          {String(val)}
-        </span>
-      );
-    }
-
-    if (val instanceof Uint8Array) {
-      return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-500/12 text-amber-700 dark:text-amber-300 border border-amber-500/25 font-mono text-[11px]">
-          Bytes ({val.length} B)
-        </span>
-      );
-    }
-
-    if ((prop.type === 'Long' || prop.type === 'DateTime') && dateCols.has(prop.name) && (typeof val === 'number' || typeof val === 'bigint')) {
-      return (
-        <span className="font-mono text-xs text-cyan-700 dark:text-cyan-300" title={`Raw: ${val.toString()}`}>
-          {formatMicrosToDate(val)}
-        </span>
-      );
-    }
-
-    if (typeof val === 'number' || typeof val === 'bigint') {
-      return <span className="font-mono text-xs text-sky-700 dark:text-sky-300">{val.toString()}</span>;
-    }
-
-    if (Array.isArray(val)) {
-      const preview = val
-        .slice(0, 3)
-        .map((item) => (item === null ? 'null' : typeof item === 'object' ? '{…}' : String(item)))
-        .join(', ');
-      return (
-        <span className="inline-flex items-center gap-1.5 max-w-[260px] truncate">
-          <span className="px-1.5 py-0.5 rounded bg-violet-500/12 text-violet-700 dark:text-violet-300 border border-violet-500/20 font-mono text-[10px] shrink-0">
-            [{val.length}]
-          </span>
-          <span className="text-xs text-slate-600 dark:text-slate-300 truncate">{preview || 'empty'}</span>
-        </span>
-      );
-    }
-
-    if (typeof val === 'object') {
-      const entries = Object.entries(val).slice(0, 3);
-      const summary = entries.map(([k, v]) => `${k}: ${v === null ? 'null' : String(v)}`).join(', ');
-      return (
-        <span className="inline-flex items-center gap-1 max-w-[260px] truncate px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 font-mono text-[11px] text-slate-700 dark:text-slate-300">
-          {`{ ${summary} }`}
-        </span>
-      );
-    }
-
-    return (
-      <span className="text-xs text-slate-800 dark:text-slate-200 block max-w-[280px] truncate" title={String(val)}>
-        {String(val) === '' ? <span className="text-slate-400 italic">"" (empty)</span> : String(val)}
-      </span>
     );
   };
 
@@ -635,92 +763,22 @@ export const DataTable: React.FC<DataTableProps> = ({
           </thead>
 
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/70">
-            {pagedRows.map((row) => {
-              const isSelected = row.idLabel === selectedRowId;
-              return (
-                <tr
-                  key={row.idLabel}
-                  onClick={() => onSelectRow(row)}
-                  className={`group cursor-pointer transition-colors ${
-                    isSelected
-                      ? 'bg-emerald-500/12 dark:bg-emerald-500/15'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-900/60'
-                  }`}
-                >
-                  <td className="px-3.5 py-2 font-mono text-xs font-medium text-emerald-700 dark:text-emerald-400 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50">
-                    <div className="flex items-center gap-1.5">
-                      <span>{row.idLabel}</span>
-                      {modifiedRowIds?.has(row.idLabel) && (
-                        <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                          edited
-                        </span>
-                      )}
-                    </div>
-                  </td>
-
-                  {activeProps
-                    .filter((p) => !hiddenCols.has(p.name))
-                    .map((prop) => (
-                      <td
-                        key={prop.name}
-                        className="px-3.5 py-2 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50"
-                      >
-                        {renderCellValue(row.fields[prop.name], prop)}
-                      </td>
-                    ))}
-
-                  {collection.schema.links.map((link) => {
-                    const targets = row.links[link.name] ?? [];
-                    return (
-                      <td
-                        key={`link:${link.name}`}
-                        className="px-3.5 py-2 whitespace-nowrap border-r border-slate-100 dark:border-slate-800/50"
-                      >
-                        {targets.length === 0 ? (
-                          <span className="text-[11px] font-mono text-slate-400 dark:text-slate-600">0</span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/12 text-cyan-700 dark:text-cyan-300 border border-cyan-500/25 font-mono text-[11px]">
-                            <Link2 className="w-2.5 h-2.5" />
-                            {targets.length === 1
-                              ? `#${targets[0].toString()}`
-                              : `${targets.length} ${link.target}`}
-                          </span>
-                        )}
-                      </td>
-                    );
-                  })}
-
-                  <td className="px-3 py-1.5 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1 opacity-40 group-hover:opacity-100 hover:opacity-100 transition-opacity">
-                      {onEditRow && (
-                        <button
-                          type="button"
-                          onClick={() => onEditRow(row)}
-                          title="Edit this record"
-                          className="p-1 rounded-md text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                      {onDeleteRow && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Delete record #${row.idLabel} from ${collection.schema.name}?`)) {
-                              onDeleteRow(row);
-                            }
-                          }}
-                          title="Delete this record"
-                          className="p-1 rounded-md text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-slate-200/60 dark:hover:bg-slate-800 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
+            {pagedRows.map((row) => (
+              <DataTableRow
+                key={row.idLabel}
+                row={row}
+                isSelected={row.idLabel === selectedRowId}
+                activeProps={activeProps}
+                hiddenCols={hiddenCols}
+                dateCols={dateCols}
+                links={collection.schema.links}
+                isModified={Boolean(modifiedRowIds?.has(row.idLabel))}
+                onSelectRow={onSelectRow}
+                onEditRow={onEditRow}
+                onDeleteRow={onDeleteRow}
+                collectionName={collection.schema.name}
+              />
+            ))}
 
             {pagedRows.length === 0 && (
               <tr>
