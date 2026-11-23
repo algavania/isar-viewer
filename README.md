@@ -2,7 +2,7 @@
 
 # ⚡ Isar Viewer
 
-**Modern, standalone, offline web viewer and inspector for Flutter [Isar Database](https://isar.dev) (`.isar`) files.**
+**Modern, standalone, offline web viewer & editor for Flutter [Isar Database](https://isar.dev) (`.isar`) files.**
 
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-isar--viewer.algavania.com-8b5cf6?style=for-the-badge&logo=google-chrome&logoColor=white)](https://isar-viewer.algavania.com)
 
@@ -17,7 +17,7 @@
 
 <p align="center">
   <b>No Flutter runtime required. No Dart models required. No emulator needed.</b><br />
-  Drag & drop any raw <code>.isar</code> file straight into your browser to inspect collections, resolve relational links, explore schemas, and export to JSON or CSV.
+  Drag & drop any raw <code>.isar</code> file straight into your browser to inspect collections, resolve relational links, edit records, explore schemas, and export to JSON or CSV.
 </p>
 
 <p align="center">
@@ -34,41 +34,58 @@ In Flutter development, [Isar](https://isar.dev) is renowned for being an ultra-
 
 Because Isar enforces compile-time code generation (`*.g.dart`), its official inspector (`https://inspect.isar.dev`) **only works during an active `flutter run` debug session via WebSocket**. 
 
-When you pull a `.isar` file from a physical device, production build, QA bug report, or tester backup, there has traditionally been **no offline GUI viewer** capable of opening and browsing it without building a custom Flutter debug harness.
+When you pull a `.isar` file from a physical device, production build, QA bug report, or tester backup, there has traditionally been **no offline GUI viewer** capable of opening, browsing, or modifying it without building a custom Flutter debug harness.
 
-**Isar Viewer solves this completely.** It implements a pure TypeScript parser for both **MDBX storage pages** and the **IsarObject binary specification**, running 100% locally in your browser.
+**Isar Viewer solves this completely.** It implements a pure TypeScript engine for both **MDBX storage pages** and the **IsarObject binary specification**, running 100% locally in your browser with full read, query, edit, and export capabilities.
 
 ---
 
 ## ✨ Features
 
-- **📂 Instant Drag & Drop**: Drop any `.isar` file to view it immediately, or use the built-in **"Load Sample Database"** for instant testing.
-- **🔍 Auto Schema Discovery**: Automatically reads the internal `_info` sub-database to reconstruct all collections, properties, embedded objects, indexes, and schema versions.
-- **⚡ Relational Link Resolver (`IsarLink`)**: Automatically resolves MDBX duplicate-sort link tables (`_l_<Collection>_<Link>`) so you can see linked records and click to navigate between them.
-- **📊 Rich Data Grid**:
-  - Global search & multi-operator column filtering (`=`, `!=`, `>`, `<`, `>=`, `contains`, `is null`, `is not null`).
+### 🔍 Viewing & Querying
+- **📂 Instant Drag & Drop**: Drop any `.isar` file to view it immediately, or use the built-in **"Load Sample Database"** for instant exploration.
+- **🔍 Auto Schema Discovery**: Automatically parses the internal `_info` sub-database to reconstruct all collections, properties, embedded objects, indexes, and schema versions.
+- **⚡ Relational Link Resolver (`IsarLink` / `IsarLinks`)**: Resolves MDBX duplicate-sort link tables (`_l_<Collection>_<Link>`) so you can see linked records and navigate between them with a single click.
+- **📊 High-Performance Data Grid**:
+  - Global search across all columns with multi-line and regex support.
+  - Multi-operator column filtering (`=`, `!=`, `>`, `<`, `>=`, `contains`, `is null`, `is not null`).
   - Column sorting with toggleable ascending/descending states.
-  - Column visibility manager (show/hide fields).
+  - Column visibility manager (show/hide specific fields).
   - Microsecond timestamp detection with one-click human-readable DateTime formatting.
+  - Row memoization and smooth pagination (25, 50, 100, 250 rows).
 - **🔎 Deep Row Inspector Drawer**:
-  - **Interactive Tree View**: Expand nested embedded objects, lists, and primitives.
-  - **Raw JSON View**: Copy individual records or export whole collections.
-  - **Hex Dump Inspector**: Inspect exact byte layout and static size offsets.
+  - **Interactive Tree View**: Expand nested embedded objects, lists, and primitives with copy shortcuts.
+  - **Raw JSON View**: Formatted JSON representation with copy and download utilities.
+  - **Hex Dump Inspector**: Low-level binary viewer with byte offsets, ASCII gutter, and static size breakdown.
+
+### ✏️ Editing & Database Mutation
+- **📝 In-Browser Record Editor**: Modify record fields directly inside the web UI with type-safe schema inputs (booleans, numbers, strings, date pickers, and JSON validation for embedded objects/lists).
+- **🗑️ Record Deletion**: Delete records with automatic cascading cleanup across secondary indexes (`_i_...`) and relation tables (`_l_...`).
+- **💾 MDBX Repacker & Binary Exporter**:
+  - Pure TypeScript repacker preserves MDBX ACID invariants and B-tree leaf alignments.
+  - Advances the MDBX 3-page MVCC meta ring with new transaction IDs (`txnid`).
+  - Download the modified database as a 100% compliant `.isar` binary file.
+  - Direct Save to disk when using the CLI dev server, with automatic `.bak` backup creation.
+  - Built-in `adb push` command generator for pushing modified databases directly back to an Android device or emulator.
+
+### 📦 Export Options
+- **🗜️ Full Database ZIP Export**: Export all or selected collections into compressed `.zip` archives via `fflate`, featuring model checklists, selectable pretty/compact JSON formatting, relational link embedding, and `_schema.json` metadata manifest.
+- **📄 Collection Export**: Export individual collections directly to **CSV** or **JSON**.
+
+### 🛠️ Developer & Storage Tools
 - **📐 Schema & ER Visualizer**:
   - Interactive collection and embedded cards with relation highlighting on hover.
-  - Built-in **Dart Model Generator**: Reverse-engineers production-ready `@collection class` Dart code directly from your database.
+  - Built-in **Dart Model Generator**: Reverse-engineers production-ready `@collection class` Dart source code directly from database metadata.
 - **🔬 MDBX Storage Internals**:
   - Inspect MVCC meta pages (pages 0, 1, 2) and verify transaction IDs.
-  - B-tree page statistics (item count, tree height, branch/leaf/overflow pages).
+  - B-tree page statistics (item counts, tree heights, branch/leaf/overflow pages, sub-database flags).
 - **⚡ Realtime Path Inspector & Live Watch**:
-  - Simply paste or type your local `.isar` file path (e.g. `~/Downloads/default.isar` or `./sample.isar`), or run `npm run inspect <path>`.
-  - Built-in SSE (Server-Sent Events) live file watcher automatically hot-reloads data in the viewer the instant your Flutter app commits changes to disk.
-- **🔄 Instant Database Switching**:
-  - Easily jump back to the landing page with the dedicated "Switch Database" button to inspect another `.isar` file anytime.
-- **🔒 100% Local, Private & Offline-Capable**:
-  - Zero server uploads. Your database never leaves your machine.
+  - **Browser Native**: Automatically watches file changes via the browser's File System Access API when dropped.
+  - **CLI Inspector**: Run `npm run inspect <path>` to launch with a Server-Sent Events (SSE) watcher that hot-reloads data the instant your Flutter app commits changes to disk.
+- **💾 Session Persistence**:
+  - Automatically caches the active database and UI state in browser IndexedDB (with safety thresholds for large files) so your work persists across page refreshes.
 - **🌓 Dark & Light Mode**:
-  - Modern switcher on both the landing page and viewer top bar, persisted in `localStorage`. Styled with Tailwind CSS v4 and JetBrains Mono.
+  - Beautiful dark and light themes persisted in `localStorage`, styled with Tailwind CSS v4 and JetBrains Mono.
 
 ---
 
@@ -76,47 +93,79 @@ When you pull a `.isar` file from a physical device, production build, QA bug re
 
 ```mermaid
 flowchart TD
-    A["Raw .isar File (ArrayBuffer)"] --> B["MDBX Page Engine (mdbx.ts)"]
-    B --> C["Meta Page Ring (0/1/2)<br/>Transaction ID & Geometry"]
-    B --> D["B-Tree Walker<br/>(P_BRANCH, P_LEAF, N_BIG, DUPSORT)"]
-    
-    D --> E["Sub-DB: _info"]
-    D --> F["Sub-DB: Collection Tables"]
-    D --> G["Sub-DB: _l_ Link Tables"]
-    
-    E --> H["JSON Schema Parser<br/>(Properties, Indexes, Links, Tombstones)"]
-    H --> I["IsarObject v2 Binary Decoder (isarDecoder.ts)"]
-    F --> I
-    G --> J["Relation Link Matcher"]
-    
-    I --> K["Isar Database Model (isarDatabase.ts)"]
+    subgraph Ingestion ["Data Ingestion"]
+        A["Raw .isar File (ArrayBuffer)"]
+        CLI["CLI Live Watcher (npm run inspect)"]
+        FSA["Browser File System Access API"]
+    end
+
+    subgraph Core ["Pure TypeScript Core Engine"]
+        B["MDBX Page Engine (mdbx.ts)"]
+        C["Meta Page Ring (0/1/2)<br/>Transaction ID & Geometry"]
+        D["B-Tree Walker<br/>(P_BRANCH, P_LEAF, N_BIG, DUPSORT)"]
+        E["Sub-DBs (_info, Collections, _l_ Links, _i_ Indexes)"]
+        
+        H["JSON Schema Parser"]
+        I["IsarObject v2 Decoder (isarDecoder.ts)"]
+        J["Relation Link Matcher"]
+        
+        ENC["IsarObject v2 Encoder (isarEncoder.ts)"]
+        MDBX_MOD["MDBX Modifier (mdbxModifier.ts)<br/>ACID Meta Ring, Leaf Re-packer"]
+    end
+
+    subgraph UI ["User Interface & Tooling"]
+        K["Isar Database Model (isarDatabase.ts)"]
+        L["Data Grid & Multi-Filter Query"]
+        M["Row Inspector (Tree / JSON / Hex)"]
+        N["Schema Visualizer & Dart Generator"]
+        O["MDBX Storage Internals"]
+        P["Export Engine (CSV / JSON ZIP)"]
+        Q["Save & Mutation Manager (Download / Disk / ADB)"]
+    end
+
+    A --> B
+    CLI --> B
+    FSA --> B
+    B --> C
+    B --> D
+    D --> E
+    E --> H
+    E --> I
+    E --> J
+    H --> I
+    I --> K
     J --> K
-    
-    K --> L["Data Grid & Filters"]
-    K --> M["Row Inspector (Tree/JSON/Hex)"]
-    K --> N["Schema & Dart Code Gen"]
-    K --> O["MDBX Page Internals"]
+
+    K --> L
+    K --> M
+    K --> N
+    K --> O
+    K --> P
+
+    L -.->|Edit / Delete Action| ENC
+    ENC --> MDBX_MOD
+    MDBX_MOD --> Q
 ```
 
 ---
 
 ## 📦 Supported Isar Data Types
 
-| Isar Type | Binary Representation | Viewer Support |
-| :--- | :--- | :---: |
-| `Id` | 8-byte XORed signed integer (`key ^ 0x8000000000000000n`) | ✅ Full (incl. negative IDs) |
-| `Bool` | 1-byte (`0x00` null, `0x01` false, `0x02` true) | ✅ Full |
-| `Byte` | 1-byte unsigned (`0..255`) | ✅ Full |
-| `Int` | 4-byte little-endian 32-bit signed integer | ✅ Full |
-| `Float` | 4-byte little-endian IEEE 754 float | ✅ Full |
-| `Long` | 8-byte little-endian 64-bit signed integer | ✅ Full |
-| `Double` | 8-byte little-endian IEEE 754 double | ✅ Full |
-| `DateTime` | 8-byte microsecond timestamp (UTC/Local) | ✅ Full (with date toggle) |
-| `String` | 3-byte offset pointer → 3-byte length + UTF-8 payload | ✅ Full |
-| `Object` (Embedded) | 3-byte offset pointer → recursive IsarObject binary buffer | ✅ Full |
-| `*List` (Primitives) | 3-byte offset pointer → 3-byte length + compact elements | ✅ Full |
-| `StringList` / `ObjectList` | 3-byte offset pointer → length + size table + payloads | ✅ Full |
-| `IsarLinks<T>` | MDBX `DUPSORT` sub-pages or `P_DUPFIX` sub-trees | ✅ Full (navigable) |
+| Isar Type | Binary Representation | Decoding | Encoding / Editing |
+| :--- | :--- | :---: | :---: |
+| `Id` | 8-byte XORed signed integer (`key ^ 0x8000000000000000n`) | ✅ Full | ✅ Full |
+| `Bool` | 1-byte (`0x00` null, `0x01` false, `0x02` true) | ✅ Full | ✅ Full |
+| `Byte` | 1-byte unsigned (`0..255`) | ✅ Full | ✅ Full |
+| `Int` | 4-byte little-endian 32-bit signed integer | ✅ Full | ✅ Full |
+| `Float` | 4-byte little-endian IEEE 754 float | ✅ Full | ✅ Full |
+| `Long` | 8-byte little-endian 64-bit signed integer | ✅ Full | ✅ Full |
+| `Double` | 8-byte little-endian IEEE 754 double | ✅ Full | ✅ Full |
+| `DateTime` | 8-byte microsecond timestamp (UTC/Local) | ✅ Full | ✅ Full |
+| `String` | 3-byte offset pointer → 3-byte length + UTF-8 payload | ✅ Full | ✅ Full |
+| `Object` (Embedded) | 3-byte offset pointer → recursive IsarObject binary buffer | ✅ Full | ✅ Full |
+| `*List` (Primitives) | 3-byte offset pointer → 3-byte length + compact elements | ✅ Full | ✅ Full |
+| `StringList` / `ObjectList` | 3-byte offset pointer → length + size table + payloads | ✅ Full | ✅ Full |
+| `IsarLinks<T>` | MDBX `DUPSORT` sub-pages or `P_DUPFIX` sub-trees | ✅ Full | ✅ Full (Cascade delete) |
 
 ---
 
@@ -125,38 +174,57 @@ flowchart TD
 ### 🌐 Try Online (No Setup Needed)
 Access the web viewer directly at **[isar-viewer.algavania.com](https://isar-viewer.algavania.com)**. Since processing is 100% client-side, your database files never leave your device.
 
-### Local Development
+---
+
+### 💻 Local Development
 
 #### Prerequisites
 - Node.js 18+ (tested on Node 20 / 22 / 24)
 - npm, pnpm, or bun
 
-#### Installation & Run
+#### 1. Clone & Install
 
 ```bash
-# Clone the repository
 git clone https://github.com/algavania/isar-viewer.git
 cd isar-viewer
-
-# Install dependencies
 npm install
+```
 
-# Start local development server
+#### 2. Run Web Development Server
+
+```bash
 npm run dev
 ```
 
-Visit **`http://localhost:5173/`** in your browser.
+Open **`http://localhost:5173/`** in your browser.
+
+#### 3. Realtime Live Watch CLI
+
+Inspect a local `.isar` file and auto-reload whenever your Flutter app commits data:
+
+```bash
+# Inspect a local database
+npm run inspect ./sample.isar
+
+# Inspect an iOS Simulator database
+npm run inspect ~/Library/Containers/com.example.app/Data/Documents/default.isar
+
+# Inspect an Android pulled database
+npm run inspect ./default.isar
+```
 
 ---
 
 ## 🧪 Testing
 
-The repository includes comprehensive automated tests covering:
-- Parsing multi-collection databases with embedded types and relational links
-- Traversal of multi-level `P_BRANCH` B-trees and `N_BIG` overflow pages
-- Signed and negative 64-bit Isar IDs
-- Schema migration evolution and tombstone fields
-- CSV and JSON serialization
+The repository includes comprehensive automated unit tests covering:
+- **Binary Decoding**: Parsing multi-collection databases with embedded types, indexes, and relational links.
+- **Binary Encoding**: Validating `IsarObject v2` dynamic offsets, UTF-8 strings, embedded layouts, and signed 64-bit IDs.
+- **MDBX Repacking**: Mutating records, updating leaf pages, preserving secondary index tables, and advancing the MVCC meta page ring.
+- **Query & Search Engine**: Complex filtering, multi-line search matching, and pagination.
+- **Exporting**: JSON ZIP packaging with `fflate`, schema manifests, and CSV generation.
+- **Session Persistence**: IndexedDB caching, buffer size thresholds, and view state recovery.
+- **Server CLI Middleware**: File inspection endpoints, SSE live file watcher, and safe `.bak` backups.
 
 Run the test suite with:
 
@@ -174,7 +242,7 @@ To create a static production bundle:
 npm run build
 ```
 
-The compiled output will be generated in `dist/`. You can serve it with any static web server (such as Vercel, Netlify, Cloudflare Pages, or `npx serve dist`).
+The compiled output will be generated in `dist/`. You can serve it with any static web host (such as Cloudflare Pages, Vercel, Netlify, or `npx serve dist`).
 
 ---
 
@@ -182,7 +250,7 @@ The compiled output will be generated in `dist/`. You can serve it with any stat
 
 | Shortcut | Action |
 | :--- | :--- |
-| `Esc` | Close active Row Inspector drawer |
+| `Esc` | Close active Row Inspector drawer or modal |
 | `↓` / `↑` | Navigate to next / previous record in the table |
 | `Enter` | Add column filter in filter dialog |
 
@@ -190,9 +258,8 @@ The compiled output will be generated in `dist/`. You can serve it with any stat
 
 ## 🛡️ Privacy & Security
 
-Isar Viewer is designed with security and privacy as first-class guarantees:
-- **No data ever leaves your device**: Database files are decoded directly in memory via JavaScript `ArrayBuffer` and `DataView`.
-- **Read-Only**: The parser never writes to or alters your `.isar` database file.
+- **100% Client-Side & Local**: All database parsing, query filtering, and binary encoding happen directly in your browser's memory using `ArrayBuffer` and `DataView`. Zero database data or telemetry is sent to any external server.
+- **Safe Editing & Backups**: Edits and deletions are staged in memory until explicitly saved. When using the CLI inspector to save directly to disk, an automatic `.bak` copy is created to prevent data loss.
 
 ---
 
